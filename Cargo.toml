@@ -1,0 +1,6 @@
+[package]
+name = "yenc"
+version = "0.0.1"
+authors = ["aswaving <aw001@swavings.nl>"]
+
+[dependencies]
