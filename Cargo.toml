@@ -2,5 +2,9 @@
 name = "yenc"
 version = "0.0.1"
 authors = ["aswaving <aw001@swavings.nl>"]
+description = "yencodes and ydecodes bytes"
+repository = "https://github.com/aswaving/yenc"
+keywords = ["yenc", "encode", "decode"]
+license = "MIT"
 
 [dependencies]
