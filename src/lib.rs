@@ -123,7 +123,7 @@ pub fn ydecode_file(input_filename: &str, output_path: &str) -> Result<String, D
     let mut checksum: crc32::Crc32 = Default::default();
     let mut yenc_block_found = false;
 
-    loop {
+    while !yenc_block_found {
         line_buf.clear();
         let length = rdr.read_until(LF, &mut line_buf)?;
         if length == 0 {
@@ -131,19 +131,16 @@ pub fn ydecode_file(input_filename: &str, output_path: &str) -> Result<String, D
         }
         if &line_buf[0..8] == b"=ybegin " {
             yenc_block_found = true;
-            break;
         }
     }
 
     if yenc_block_found {
         // parse header line and determine output filename
-        // let header_data = parse_header_line(&line_buf[0..length)]);
-        let offset = 8;
-        let metadata = parse_header_line(&line_buf, offset)?;
-
+        let metadata = parse_header_line(&line_buf, 8)?;
         output_pathbuf.push(metadata.name.unwrap().to_string().trim());
         let mut output_file =
             OpenOptions::new().write(true).create_new(true).open(output_pathbuf.as_path())?;
+
         let mut footer_found = false;
         while !footer_found {
             line_buf.clear();
@@ -215,7 +212,7 @@ fn parse_header_line(line_buf: &[u8], offset: usize) -> Result<MetaData, DecodeE
     let mut keyword = Vec::<u8>::with_capacity(4);
     let mut value = Vec::<u8>::with_capacity(96);
 
-    let header_line = String::from_utf8_lossy(&line_buf).to_string();
+    let header_line = String::from_utf8_lossy(line_buf).to_string();
     for (i, &c) in line_buf[offset..].iter().enumerate() {
         let position = i + offset;
         match state {
