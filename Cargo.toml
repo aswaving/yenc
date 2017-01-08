@@ -1,10 +1,10 @@
 [package]
 name = "yenc"
-version = "0.0.2"
+version = "0.0.3"
 authors = ["aswaving <a.swaving@gmail.com>"]
 description = "yencodes and ydecodes bytes"
 repository = "https://github.com/aswaving/yenc"
-documentation = "https://docs.rs/yenc/0.0.2/yenc/"
+documentation = "https://docs.rs/yenc/0.0.3/yenc/"
 keywords = ["yenc", "encode", "decode"]
 license = "MIT"
 
