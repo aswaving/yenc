@@ -1,3 +1,4 @@
+[![Build Status](https://travis-ci.org/aswaving/yenc.svg?branch=master)](https://travis-ci.org/aswaving/yenc)
 # yenc
 
 Encodes bytes into yEnc text and decodes yEnc encoded text back to bytes.
