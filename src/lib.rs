@@ -107,6 +107,9 @@ fn yencode_byte(input_byte: u8) -> Vec<u8> {
 
 
 /// Decodes the input file in a new output file.
+///
+/// If ok, returns the path of the decoded file.
+///
 /// # Example
 /// ```
 /// yenc::ydecode_file("test2.bin.yenc", "test2.bin");
@@ -129,7 +132,7 @@ pub fn ydecode_file(input_filename: &str, output_path: &str) -> Result<String, D
         if length == 0 {
             break;
         }
-        if &line_buf[0..8] == b"=ybegin " {
+        if line_buf.starts_with(b"=ybegin ") {
             yenc_block_found = true;
         }
     }
@@ -148,7 +151,7 @@ pub fn ydecode_file(input_filename: &str, output_path: &str) -> Result<String, D
             if length == 0 {
                 break;
             }
-            if &line_buf[0..6] == b"=yend " {
+            if line_buf.starts_with(b"=yend ") {
                 footer_found = true;
             } else {
                 let decoded = ydecode_buffer(&line_buf[0..length]);
