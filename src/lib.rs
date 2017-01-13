@@ -233,6 +233,7 @@ fn parse_header_line(line_buf: &[u8], offset: usize) -> Result<MetaData, DecodeE
                             state = State::Value;
                         }
                     }
+                    b'\r' | b'\n' => {}
                     _ => {
                         return Err(DecodeError::InvalidHeader(header_line, position));
                     }
