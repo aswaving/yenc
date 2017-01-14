@@ -9,7 +9,7 @@ fn main() {
 
     exit(match yenc::yencode_file(&input_filename, &output_filename) {
         Err(err) => {
-            println!("Error yEncoding {} to {}: {:?}",
+            println!("Error yEncoding {} to {}: {}",
                      input_filename,
                      output_filename,
                      err);

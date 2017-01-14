@@ -1,11 +1,12 @@
 //! [yEnc](http://www.yenc.org) is an encoding scheme to include binary files in Usenet messages.
 mod crc32;
+mod errors;
 
+pub use errors::*;
 use std::fs::OpenOptions;
 use std::io;
 use std::io::{Read, Write, BufReader, BufRead};
 use std::path::PathBuf;
-use std::convert::From;
 
 const NUL: u8 = 0;
 const TAB: u8 = b'\t';
@@ -14,20 +15,6 @@ const CR: u8 = b'\r';
 const SPACE: u8 = b' ';
 const ESCAPE: u8 = b'=';
 const LINE_SIZE: u16 = 128;
-
-#[derive(Debug)]
-pub enum DecodeError {
-    IncompleteData(usize, usize),
-    InvalidHeader(String, usize),
-    InvalidChecksum,
-    IoError(io::Error),
-}
-
-impl From<io::Error> for DecodeError {
-    fn from(error: io::Error) -> DecodeError {
-        DecodeError::IoError(error)
-    }
-}
 
 #[derive(Default,Debug)]
 struct MetaData {
@@ -161,14 +148,20 @@ pub fn ydecode_file(input_filename: &str, output_path: &str) -> Result<String, D
         }
         if let Some(expected_size) = metadata.size {
             if expected_size != checksum.num_bytes {
-                return Err(DecodeError::IncompleteData(expected_size, checksum.num_bytes));
+                return Err(DecodeError::IncompleteData {
+                    expected_size: expected_size,
+                    actual_size: checksum.num_bytes,
+                });
             }
         }
         if footer_found {
             let metadata = parse_header_line(&line_buf, 6)?;
             if let Some(expected_size) = metadata.size {
                 if expected_size != checksum.num_bytes {
-                    return Err(DecodeError::IncompleteData(expected_size, checksum.num_bytes));
+                    return Err(DecodeError::IncompleteData {
+                        expected_size: expected_size,
+                        actual_size: checksum.num_bytes,
+                    });
                 }
             }
             if let Some(expected_crc) = metadata.crc32 {
@@ -228,14 +221,20 @@ fn parse_header_line(line_buf: &[u8], offset: usize) -> Result<MetaData, DecodeE
                            !(keyword.as_slice() == b"name" || keyword.as_slice() == b"line" ||
                              keyword.as_slice() == b"size" ||
                              keyword.as_slice() == b"crc32") {
-                            return Err(DecodeError::InvalidHeader(header_line, position));
+                            return Err(DecodeError::InvalidHeader {
+                                line: header_line,
+                                position: position,
+                            });
                         } else {
                             state = State::Value;
                         }
                     }
                     b'\r' | b'\n' => {}
                     _ => {
-                        return Err(DecodeError::InvalidHeader(header_line, position));
+                        return Err(DecodeError::InvalidHeader {
+                            line: header_line,
+                            position: position,
+                        });
                     }
                 }
             }
@@ -264,7 +263,10 @@ fn parse_header_line(line_buf: &[u8], offset: usize) -> Result<MetaData, DecodeE
                                 value.clear();
                             }
                             _ => {
-                                return Err(DecodeError::InvalidHeader(header_line, position));
+                                return Err(DecodeError::InvalidHeader {
+                                    line: header_line,
+                                    position: position,
+                                });
                             }
                         }
                     }
@@ -280,7 +282,10 @@ fn parse_header_line(line_buf: &[u8], offset: usize) -> Result<MetaData, DecodeE
                                 value.clear();
                             }
                             _ => {
-                                return Err(DecodeError::InvalidHeader(header_line, position));
+                                return Err(DecodeError::InvalidHeader {
+                                    line: header_line,
+                                    position: position,
+                                });
                             }
                         }
                     }
@@ -305,7 +310,10 @@ fn parse_header_line(line_buf: &[u8], offset: usize) -> Result<MetaData, DecodeE
                             }
                             b'\r' => {}
                             _ => {
-                                return Err(DecodeError::InvalidHeader(header_line, position));
+                                return Err(DecodeError::InvalidHeader {
+                                    line: header_line,
+                                    position: position,
+                                });
                             }
                         }
                     }

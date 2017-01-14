@@ -9,7 +9,7 @@ fn main() {
 
     exit(match yenc::ydecode_file(&input_filename, &output_directory) {
         Err(err) => {
-            println!("Error yEnc decoding {}: {:?}", input_filename, err);
+            println!("Error yEnc decoding {}: {}", input_filename, err);
             1
         }
         Ok(output_filename) => {
