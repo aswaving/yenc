@@ -61,3 +61,31 @@ impl Crc32 {
         self.num_bytes += 1;
     }
 }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_default() {
+        let crc32: Crc32 = Default::default();
+        assert_eq!(0, crc32.crc, "Invalid checksum");
+        assert_eq!(0, crc32.num_bytes, "Invalid number of bytes");
+    }
+
+    #[test]
+    fn test_empty_slice() {
+        let mut crc32: Crc32 = Default::default();
+        crc32.update_with_slice(&[0; 0]);
+        assert_eq!(0, crc32.crc, "Invalid checksum");
+        assert_eq!(0, crc32.num_bytes, "Invalid number of bytes");
+    }
+
+    #[test]
+    fn test() {
+        let mut crc32: Crc32 = Default::default();
+        let block = (0..2048).map(|c| c as u8).collect::<Vec<u8>>();
+        crc32.update_with_slice(&block);
+        assert_eq!(0x9f5edd58, crc32.crc, "Invalid checksum");
+        assert_eq!(2048, crc32.num_bytes, "Invalid number of bytes");
+    }
+}
