@@ -1,4 +1,3 @@
-#[derive(Default)]
 pub struct Crc32 {
     pub crc: u32,
     pub num_bytes: usize,
@@ -45,6 +44,13 @@ const POLYNOMIALS: [u32; 256] =
 
 
 impl Crc32 {
+    pub fn new() -> Crc32 {
+        Crc32 {
+            crc: 0,
+            num_bytes: 0,
+        }
+    }
+
     /// Update the CRC32 with the bytes from the slice.
     pub fn update_with_slice(&mut self, buf: &[u8]) {
         for byte in buf {
@@ -61,20 +67,21 @@ impl Crc32 {
         self.num_bytes += 1;
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_default() {
-        let crc32: Crc32 = Default::default();
+        let crc32 = Crc32::new();
         assert_eq!(0, crc32.crc, "Invalid checksum");
         assert_eq!(0, crc32.num_bytes, "Invalid number of bytes");
     }
 
     #[test]
     fn test_empty_slice() {
-        let mut crc32: Crc32 = Default::default();
+        let mut crc32 = Crc32::new();
         crc32.update_with_slice(&[0; 0]);
         assert_eq!(0, crc32.crc, "Invalid checksum");
         assert_eq!(0, crc32.num_bytes, "Invalid number of bytes");
@@ -82,7 +89,7 @@ mod tests {
 
     #[test]
     fn test() {
-        let mut crc32: Crc32 = Default::default();
+        let mut crc32 = Crc32::new();
         let block = (0..2048).map(|c| c as u8).collect::<Vec<u8>>();
         crc32.update_with_slice(&block);
         assert_eq!(0x9f5edd58, crc32.crc, "Invalid checksum");
