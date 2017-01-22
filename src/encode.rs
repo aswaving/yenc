@@ -5,6 +5,7 @@ use std::fs::File;
 use std::io;
 use std::io::{Read, Write, Seek, SeekFrom};
 
+/// Options for encoding
 #[derive(Debug)]
 pub struct EncodeOptions {
     line_length: u8,
@@ -15,6 +16,10 @@ pub struct EncodeOptions {
 }
 
 impl EncodeOptions {
+    /// Constructs a new EncodeOptions instance, with the following defaults:
+    /// line_length = 128.
+    /// parts = 1,
+    /// part = begin = end = 0
     pub fn new() -> EncodeOptions {
         EncodeOptions {
             line_length: 128,
@@ -25,26 +30,40 @@ impl EncodeOptions {
         }
     }
 
+    /// Sets the maximum line length.
     pub fn line_length(mut self, line_length: u8) -> EncodeOptions {
         self.line_length = line_length;
         self
     }
 
+    /// Sets the number of parts (default=1).
+    /// When the number of parts equals 1, no '=ypart' line will be written
+    /// in the ouput.
     pub fn parts(mut self, parts: u32) -> EncodeOptions {
         self.parts = parts;
         self
     }
 
+    /// Sets the part number.
+    /// Only used when `parts > 1`.
+    /// The part number count starts at 1.
     pub fn part(mut self, part: u32) -> EncodeOptions {
         self.part = part;
         self
     }
 
+    /// Sets the begin (which is the file offset + 1).
+    /// Only used when `parts > 1`.
+    /// The size of the part is `end - begin + 1`.
     pub fn begin(mut self, begin: u64) -> EncodeOptions {
         self.begin = begin;
         self
     }
 
+    /// Sets the end.
+    /// Only used when `parts > 1`.
+    /// The size of the part is `end - begin + 1`.
+    /// `end` should be larger than `begin`, otherwise an overflow error occurrs.
     pub fn end(mut self, end: u64) -> EncodeOptions {
         self.end = end;
         self

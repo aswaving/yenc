@@ -4,14 +4,19 @@ use std::io;
 use std::iter;
 use std::convert::From;
 
+/// Error enum for errors that can be encountered while decoding.
 #[derive(Debug)]
 pub enum DecodeError {
+    /// Fewer or more bytes than expected.
     IncompleteData {
         expected_size: usize,
         actual_size: usize,
     },
+    /// The header or footer line contains unexpected characters or is incomplete.
     InvalidHeader { line: String, position: usize },
+    /// CRC32 checksum of the part is not the expected checksum.
     InvalidChecksum,
+    /// An I/O error occurred.
     IoError(io::Error),
 }
 
