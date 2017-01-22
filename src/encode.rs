@@ -90,21 +90,21 @@ pub fn yencode_file(input_file: &mut File,
     let mut buffer = [0u8; 8192];
     let mut col = 0;
 
-    output.write(format!("=ybegin line={} size={} name={}\r\n",
-                       DEFAULT_LINE_SIZE,
-                       input_file.metadata()?.len(),
-                       input_filename)
+    output.write_all(format!("=ybegin line={} size={} name={}\r\n",
+                           DEFAULT_LINE_SIZE,
+                           input_file.metadata()?.len(),
+                           input_filename)
             .as_bytes())?;
 
     if encode_options.parts > 1 {
-        output.write(format!("=ypart part={} begin={} end={}\r\n",
-                           encode_options.part,
-                           encode_options.begin,
-                           encode_options.end)
+        output.write_all(format!("=ypart part={} begin={} end={}\r\n",
+                               encode_options.part,
+                               encode_options.begin,
+                               encode_options.end)
                 .as_bytes())?;
     }
 
-    input_file.seek(SeekFrom::Start(encode_options.begin - 1));
+    input_file.seek(SeekFrom::Start(encode_options.begin - 1))?;
 
     let mut remainder = (encode_options.end - encode_options.begin + 1) as usize;
     while remainder > 0 {
@@ -115,23 +115,23 @@ pub fn yencode_file(input_file: &mut File,
         };
         input_file.read_exact(&mut buffer[0..bytes_to_read])?;
         checksum.update_with_slice(&buffer[0..bytes_to_read]);
-        output.write(yencode_buffer(&buffer[0..bytes_to_read],
-                                  &mut col,
-                                  encode_options.line_length)
+        output.write_all(yencode_buffer(&buffer[0..bytes_to_read],
+                                      &mut col,
+                                      encode_options.line_length)
                 .as_slice())?;
         remainder -= bytes_to_read;
     }
 
     if encode_options.parts > 1 {
-        output.write(format!("\r\n=yend part={} size={} pcrc32={:08x}\r\n",
-                           encode_options.part,
-                           checksum.num_bytes,
-                           checksum.crc)
+        output.write_all(format!("\r\n=yend part={} size={} pcrc32={:08x}\r\n",
+                               encode_options.part,
+                               checksum.num_bytes,
+                               checksum.crc)
                 .as_bytes())?;
     } else {
-        output.write(format!("\r\n=yend size={} crc32={:08x}\r\n",
-                           checksum.num_bytes,
-                           checksum.crc)
+        output.write_all(format!("\r\n=yend size={} crc32={:08x}\r\n",
+                               checksum.num_bytes,
+                               checksum.crc)
                 .as_bytes())?;
     }
     Ok(())

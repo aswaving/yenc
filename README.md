@@ -18,7 +18,7 @@ let encode_options = yenc::EncodeOptions::new()
 let mut output_file = std::fs::File::create("Cargo.toml.yenc").unwrap();
 
 yenc::yencode_file(&mut input_file, 
-                   &input_filename, 
+                   input_filename, 
                    encode_options, 
                    &mut output_file)
     .unwrap();

@@ -76,7 +76,7 @@ pub fn ydecode_file(input_filename: &str, output_path: &str) -> Result<String, D
             } else {
                 let decoded = ydecode_buffer(&line_buf[0..length])?;
                 checksum.update_with_slice(decoded.as_slice());
-                output_file.write(decoded.as_slice())?;
+                output_file.write_all(decoded.as_slice())?;
             }
         }
         if footer_found {
@@ -95,16 +95,15 @@ pub fn ydecode_file(input_filename: &str, output_path: &str) -> Result<String, D
                     return Err(DecodeError::InvalidChecksum);
                 }
             }
-        } else {
-            if let Some(expected_size) = metadata.size {
-                if expected_size != checksum.num_bytes {
-                    return Err(DecodeError::IncompleteData {
-                        expected_size: expected_size,
-                        actual_size: checksum.num_bytes,
-                    });
-                }
+        } else if let Some(expected_size) = metadata.size {
+            if expected_size != checksum.num_bytes {
+                return Err(DecodeError::IncompleteData {
+                    expected_size: expected_size,
+                    actual_size: checksum.num_bytes,
+                });
             }
         }
+
     }
     Ok(output_pathbuf.to_str().unwrap().to_string())
 }
@@ -290,35 +289,7 @@ fn parse_header_line(line_buf: &[u8], offset: usize) -> Result<MetaData, DecodeE
                             }
                         }
                     }
-                    b"crc32" => {
-                        match c {
-                            b'0'...b'9' | b'A'...b'F' | b'a'...b'f' => value.push(c),
-                            SPACE => {
-                                state = State::Keyword;
-                                metadata.crc32 =
-                                    Some(u32::from_str_radix(&String::from_utf8_lossy(&value), 16)
-                                        .unwrap());
-                                keyword.clear();
-                                value.clear();
-                            }
-                            LF => {
-                                state = State::End;
-                                metadata.crc32 =
-                                    Some(u32::from_str_radix(&String::from_utf8_lossy(&value), 16)
-                                        .unwrap());
-                                keyword.clear();
-                                value.clear();
-                            }
-                            CR => {}
-                            _ => {
-                                return Err(DecodeError::InvalidHeader {
-                                    line: header_line,
-                                    position: position,
-                                });
-                            }
-                        }
-                    }
-                    b"pcrc32" => {
+                    b"crc32" | b"pcrc32" => {
                         match c {
                             b'0'...b'9' | b'A'...b'F' | b'a'...b'f' => value.push(c),
                             SPACE => {

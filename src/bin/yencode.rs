@@ -32,7 +32,7 @@ fn main() {
         let encode_options =
             yenc::EncodeOptions::new().parts(parts).part(part).begin(begin).end(end);
 
-        match yenc::yencode_file(&mut input_file, &filename, encode_options, &mut output_file) {
+        match yenc::yencode_file(&mut input_file, filename, encode_options, &mut output_file) {
             Err(err) => {
                 println!("Error yEncoding {} to {}: {}",
                          input_filename,
