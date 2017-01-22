@@ -81,7 +81,6 @@ pub fn ydecode_file(input_filename: &str, output_path: &str) -> Result<String, D
         }
         if footer_found {
             let metadata = parse_header_line(&line_buf, 6)?;
-            println!("{:?}", metadata);
             if let Some(expected_size) = metadata.size {
                 if expected_size != checksum.num_bytes {
                     return Err(DecodeError::IncompleteData {
