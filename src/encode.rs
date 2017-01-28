@@ -22,7 +22,7 @@ impl EncodeOptions {
     /// part = begin = end = 0
     pub fn new() -> EncodeOptions {
         EncodeOptions {
-            line_length: 128,
+            line_length: DEFAULT_LINE_SIZE,
             parts: 1,
             part: 0,
             begin: 0,
@@ -90,15 +90,23 @@ pub fn yencode_file(input_file: &mut File,
     let mut buffer = [0u8; 8192];
     let mut col = 0;
 
-    output.write_all(format!("=ybegin line={} size={} name={}\r\n",
-                           DEFAULT_LINE_SIZE,
-                           input_file.metadata()?.len(),
-                           input_filename)
-            .as_bytes())?;
+    if encode_options.parts == 1 {
+        output.write_all(format!("=ybegin line={} size={} name={}\r\n",
+                               encode_options.line_length,
+                               input_file.metadata()?.len(),
+                               input_filename)
+                .as_bytes())?;
+    } else {
+        output.write_all(format!("=ybegin part={} line={} size={} name={}\r\n",
+                               encode_options.part,
+                               encode_options.line_length,
+                               input_file.metadata()?.len(),
+                               input_filename)
+                .as_bytes())?;
+    }
 
     if encode_options.parts > 1 {
-        output.write_all(format!("=ypart part={} begin={} end={}\r\n",
-                               encode_options.part,
+        output.write_all(format!("=ypart begin={} end={}\r\n",
                                encode_options.begin,
                                encode_options.end)
                 .as_bytes())?;
@@ -123,9 +131,9 @@ pub fn yencode_file(input_file: &mut File,
     }
 
     if encode_options.parts > 1 {
-        output.write_all(format!("\r\n=yend part={} size={} pcrc32={:08x}\r\n",
-                               encode_options.part,
+        output.write_all(format!("\r\n=yend size={} part={} pcrc32={:08x}\r\n",
                                checksum.num_bytes,
+                               encode_options.part,
                                checksum.crc)
                 .as_bytes())?;
     } else {
