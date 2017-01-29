@@ -155,7 +155,7 @@ pub fn yencode_buffer(input: &[u8], col: &mut u8, line_length: u8) -> Vec<u8> {
         if encoded_len > 1 {
             output.push(encoded[1]);
         }
-        *col += encoded.len() as u8;
+        *col += encoded_len as u8;
         if *col >= line_length {
             output.push(CR);
             output.push(LF);
