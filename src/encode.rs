@@ -1,5 +1,5 @@
 use crc32;
-use constants::{NUL, CR, LF, SPACE, TAB, ESCAPE, DEFAULT_LINE_SIZE};
+use constants::{NUL, CR, LF, ESCAPE, DEFAULT_LINE_SIZE};
 
 use std::fs::File;
 use std::io;
@@ -170,7 +170,7 @@ fn yencode_byte(input_byte: u8, output: &mut [u8; 2]) -> usize {
     let mut idx = 0;
     let mut output_byte = input_byte.overflowing_add(42).0;
     match output_byte {
-        NUL | CR | LF | ESCAPE | TAB | SPACE => {
+        NUL | CR | LF | ESCAPE => {
             output[idx] = ESCAPE;
             idx += 1;
             output_byte = output_byte.overflowing_add(64).0;
@@ -194,12 +194,14 @@ mod tests {
         assert_eq!(vec![ESCAPE, 0x40], output);
     }
 
+    /*
     #[test]
     fn escape_tab() {
         let mut output = [0u8; 2];
         assert_eq!(2, yencode_byte(214 + TAB, &mut output));
         assert_eq!(vec![ESCAPE, 0x49], output);
     }
+    */
 
     #[test]
     fn escape_lf() {
@@ -215,12 +217,14 @@ mod tests {
         assert_eq!(vec![ESCAPE, 0x4D], output);
     }
 
+    /*    
     #[test]
     fn escape_space() {
         let mut output = [0u8; 2];
         assert_eq!(2, yencode_byte(214 + SPACE, &mut output));
         assert_eq!(vec![ESCAPE, 0x60], output);
     }
+    */
 
     #[test]
     fn escape_equal_sign() {
