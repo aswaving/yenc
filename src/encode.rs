@@ -147,10 +147,14 @@ pub fn yencode_file(input_file: &mut File,
 
 /// Encode the byte slice into a vector of yEncoded bytes, with the maximum of `line_length` characters per line.
 pub fn yencode_buffer(input: &[u8], col: &mut u8, line_length: u8) -> Vec<u8> {
-    let mut output = Vec::<u8>::with_capacity(input.len());
+    let mut output = Vec::<u8>::with_capacity(input.len()); //TODO remove this heap alloc
     for &b in input {
-        let encoded = yencode_byte(b);
-        output.extend_from_slice(&encoded);
+        let mut encoded = [0u8; 2];
+        let encoded_len = yencode_byte(b, &mut encoded);
+        output.push(encoded[0]);
+        if encoded_len > 1 {
+            output.push(encoded[1]);
+        }
         *col += encoded.len() as u8;
         if *col >= line_length {
             output.push(CR);
@@ -162,18 +166,19 @@ pub fn yencode_buffer(input: &[u8], col: &mut u8, line_length: u8) -> Vec<u8> {
 }
 
 #[inline]
-fn yencode_byte(input_byte: u8) -> Vec<u8> {
-    let mut output = Vec::<u8>::with_capacity(2);
+fn yencode_byte(input_byte: u8, output: &mut [u8; 2]) -> usize {
+    let mut idx = 0;
     let mut output_byte = input_byte.overflowing_add(42).0;
     match output_byte {
         NUL | CR | LF | ESCAPE | TAB | SPACE => {
-            output.push(ESCAPE);
+            output[idx] = ESCAPE;
+            idx += 1;
             output_byte = output_byte.overflowing_add(64).0;
         }
         _ => {}
     };
-    output.push(output_byte);
-    output
+    output[idx] = output_byte;
+    idx + 1
 }
 
 
@@ -184,31 +189,50 @@ mod tests {
 
     #[test]
     fn escape_null() {
-        assert_eq!(vec![ESCAPE, 0x40], yencode_byte(214));
+        let mut output = [0u8; 2];
+        assert_eq!(2, yencode_byte(214, &mut output));
+        assert_eq!(vec![ESCAPE, 0x40], output);
     }
 
     #[test]
     fn escape_tab() {
-        assert_eq!(vec![ESCAPE, 0x49], yencode_byte(214 + TAB));
+        let mut output = [0u8; 2];
+        assert_eq!(2, yencode_byte(214 + TAB, &mut output));
+        assert_eq!(vec![ESCAPE, 0x49], output);
     }
 
     #[test]
     fn escape_lf() {
-        assert_eq!(vec![ESCAPE, 0x4A], yencode_byte(214 + LF));
+        let mut output = [0u8; 2];
+        assert_eq!(2, yencode_byte(214 + LF, &mut output));
+        assert_eq!(vec![ESCAPE, 0x4A], output);
     }
 
     #[test]
     fn escape_cr() {
-        assert_eq!(vec![ESCAPE, 0x4D], yencode_byte(214 + CR));
+        let mut output = [0u8; 2];
+        assert_eq!(2, yencode_byte(214 + CR, &mut output));
+        assert_eq!(vec![ESCAPE, 0x4D], output);
     }
 
     #[test]
     fn escape_space() {
-        assert_eq!(vec![ESCAPE, 0x60], yencode_byte(214 + SPACE));
+        let mut output = [0u8; 2];
+        assert_eq!(2, yencode_byte(214 + SPACE, &mut output));
+        assert_eq!(vec![ESCAPE, 0x60], output);
     }
 
     #[test]
     fn escape_equal_sign() {
-        assert_eq!(vec![ESCAPE, 0x7D], yencode_byte(ESCAPE - 42));
+        let mut output = [0u8; 2];
+        assert_eq!(2, yencode_byte(ESCAPE - 42, &mut output));
+        assert_eq!(vec![ESCAPE, 0x7D], output);
+    }
+
+    #[test]
+    fn non_escaped() {
+        let mut output = [0u8; 2];
+        assert_eq!(1, yencode_byte(0, &mut output));
+        assert_eq!(vec![42, 0], output);
     }
 }
