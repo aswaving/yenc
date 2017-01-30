@@ -1,5 +1,5 @@
 use std::fs::OpenOptions;
-use std::io::{Write, BufReader, BufRead, Seek, SeekFrom};
+use std::io::{Read, Write, BufReader, BufRead, Seek, SeekFrom};
 use std::path::PathBuf;
 
 use errors::DecodeError;
@@ -17,7 +17,6 @@ struct MetaData {
     end: Option<usize>,
 }
 
-
 /// Decodes the input file in a new output file.
 ///
 /// If ok, returns the path of the decoded file.
@@ -30,10 +29,21 @@ struct MetaData {
 /// - when the output file already exists
 ///
 pub fn ydecode_file(input_filename: &str, output_path: &str) -> Result<String, DecodeError> {
-    let input_file = OpenOptions::new().read(true).open(input_filename)?;
+    let mut input_file = OpenOptions::new().read(true).open(input_filename)?;
+    ydecode_stream(&mut input_file, output_path)
+}
+
+/// Decodes the data from a stream in a new output file.
+///
+/// Writes the output to a file with the filename from the header line, and places it in the 
+/// output path. The path of the output file is returned.
+pub fn ydecode_stream<R>(read_stream: &mut R, output_path: &str) -> Result<String, DecodeError>
+    where R: Read
+{
+    let mut rdr = BufReader::new(read_stream);
     let mut output_pathbuf = PathBuf::new();
     output_pathbuf.push(output_path);
-    let mut rdr = BufReader::new(input_file);
+
     let mut line_buf = Vec::<u8>::with_capacity(2 * DEFAULT_LINE_SIZE as usize);
     let mut checksum = crc32::Crc32::new();
     let mut yenc_block_found = false;
@@ -108,6 +118,7 @@ pub fn ydecode_file(input_filename: &str, output_path: &str) -> Result<String, D
 }
 
 /// Decode the yEncoded byte slice into a vector of bytes.
+///
 /// Carriage Return (CR) and Line Feed (LF) are ignored.
 pub fn ydecode_buffer(input: &[u8]) -> Result<Vec<u8>, DecodeError> {
     // TODO remove heap allocation

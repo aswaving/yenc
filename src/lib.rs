@@ -7,7 +7,7 @@ mod decode;
 
 pub use errors::DecodeError;
 pub use encode::{yencode_file, yencode_buffer, EncodeOptions};
-pub use decode::{ydecode_file, ydecode_buffer};
+pub use decode::{ydecode_file, ydecode_stream, ydecode_buffer};
 
 #[cfg(test)]
 mod tests {
