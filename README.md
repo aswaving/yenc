@@ -2,10 +2,12 @@
 # yenc
 
 Encodes bytes into yEnc text and decodes yEnc encoded text back to bytes.
+Requires compiler version >= v1.13.0.
+
 See [documentation](http://docs.rs/yenc).
 For more information on yEnc see [Wikipedia](https://en.wikipedia.org/wiki/YEnc) and [yenc.org](http://www.yenc.org).
 
-The public API is not yet stable and will change until v0.1.0.
+The public API is not yet stable.
 
 ## Example: encoding Cargo.toml
 
