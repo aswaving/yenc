@@ -35,7 +35,7 @@ pub fn ydecode_file(input_filename: &str, output_path: &str) -> Result<String, D
 
 /// Decodes the data from a stream in a new output file.
 ///
-/// Writes the output to a file with the filename from the header line, and places it in the 
+/// Writes the output to a file with the filename from the header line, and places it in the
 /// output path. The path of the output file is returned.
 pub fn ydecode_stream<R>(read_stream: &mut R, output_path: &str) -> Result<String, DecodeError>
     where R: Read
@@ -44,31 +44,31 @@ pub fn ydecode_stream<R>(read_stream: &mut R, output_path: &str) -> Result<Strin
     let mut output_pathbuf = PathBuf::new();
     output_pathbuf.push(output_path);
 
-    let mut line_buf = Vec::<u8>::with_capacity(2 * DEFAULT_LINE_SIZE as usize);
     let mut checksum = crc32::Crc32::new();
     let mut yenc_block_found = false;
+    let mut metadata: MetaData = Default::default();
 
     while !yenc_block_found {
-        line_buf.clear();
+        let mut line_buf = Vec::<u8>::with_capacity(2 * DEFAULT_LINE_SIZE as usize);
         let length = rdr.read_until(LF, &mut line_buf)?;
         if length == 0 {
             break;
         }
         if line_buf.starts_with(b"=ybegin ") {
             yenc_block_found = true;
+            // parse header line and determine output filename
+            metadata = parse_header_line(&line_buf, 8)?;
+            output_pathbuf.push(metadata.name.unwrap().to_string().trim());
         }
     }
 
     if yenc_block_found {
-        // parse header line and determine output filename
-        let mut metadata = parse_header_line(&line_buf, 8)?;
-        output_pathbuf.push(metadata.name.unwrap().to_string().trim());
         let mut output_file =
             OpenOptions::new().create(true).write(true).open(output_pathbuf.as_path())?;
 
         let mut footer_found = false;
         while !footer_found {
-            line_buf.clear();
+            let mut line_buf = Vec::<u8>::with_capacity(2 * DEFAULT_LINE_SIZE as usize);
             let length = rdr.read_until(LF, &mut line_buf)?;
             if length == 0 {
                 break;
@@ -83,6 +83,9 @@ pub fn ydecode_stream<R>(read_stream: &mut R, output_path: &str) -> Result<Strin
                 }
             } else if line_buf.starts_with(b"=yend ") {
                 footer_found = true;
+                let mm = parse_header_line(&line_buf, 6)?;
+                metadata.size = mm.size;
+                metadata.crc32 = mm.crc32;
             } else {
                 let decoded = ydecode_buffer(&line_buf[0..length])?;
                 checksum.update_with_slice(decoded.as_slice());
@@ -90,7 +93,6 @@ pub fn ydecode_stream<R>(read_stream: &mut R, output_path: &str) -> Result<Strin
             }
         }
         if footer_found {
-            let metadata = parse_header_line(&line_buf, 6)?;
             if let Some(expected_size) = metadata.size {
                 if expected_size != checksum.num_bytes {
                     return Err(DecodeError::IncompleteData {
