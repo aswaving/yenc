@@ -2,9 +2,10 @@
 name = "yenc"
 version = "0.0.4-alpha"
 authors = ["aswaving <a.swaving@gmail.com>"]
-description = "yencodes and ydecodes bytes"
+description = "Encodes and decodes using the yEnc encoding."
 repository = "https://github.com/aswaving/yenc"
 documentation = "https://docs.rs/yenc/0.0.4/yenc/"
+categories = ["encoding"]
 keywords = ["yenc", "encode", "decode"]
 license = "MIT"
 
