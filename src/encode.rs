@@ -76,40 +76,50 @@ impl EncodeOptions {
 /// let mut file = std::fs::File::open("test1.bin").unwrap();
 /// let encode_options = yenc::EncodeOptions::new().parts(1);
 /// let mut output_file = std::fs::File::create("test1.bin.yenc").unwrap();
-/// yenc::yencode_file(&mut file, "test1.bin", encode_options, &mut output_file);
+/// yenc::yencode_file(&mut file, "test1.bin", &encode_options, &mut output_file);
 /// ```
 /// # Errors
 /// - when the output file already exists
 ///
-pub fn yencode_file(input_file: &mut File,
-                    input_filename: &str,
-                    encode_options: EncodeOptions,
-                    output: &mut Write)
-                    -> Result<(), io::Error> {
+pub fn yencode_file(
+    input_file: &mut File,
+    input_filename: &str,
+    encode_options: &EncodeOptions,
+    output: &mut Write,
+) -> Result<(), io::Error> {
     let mut checksum = crc32::Crc32::new();
     let mut buffer = [0u8; 8192];
     let mut col = 0;
 
     if encode_options.parts == 1 {
-        output.write_all(format!("=ybegin line={} size={} name={}\r\n",
-                               encode_options.line_length,
-                               input_file.metadata()?.len(),
-                               input_filename)
-                .as_bytes())?;
+        output.write_all(
+            format!(
+                "=ybegin line={} size={} name={}\r\n",
+                encode_options.line_length,
+                input_file.metadata()?.len(),
+                input_filename
+            ).as_bytes(),
+        )?;
     } else {
-        output.write_all(format!("=ybegin part={} line={} size={} name={}\r\n",
-                               encode_options.part,
-                               encode_options.line_length,
-                               input_file.metadata()?.len(),
-                               input_filename)
-                .as_bytes())?;
+        output.write_all(
+            format!(
+                "=ybegin part={} line={} size={} name={}\r\n",
+                encode_options.part,
+                encode_options.line_length,
+                input_file.metadata()?.len(),
+                input_filename
+            ).as_bytes(),
+        )?;
     }
 
     if encode_options.parts > 1 {
-        output.write_all(format!("=ypart begin={} end={}\r\n",
-                               encode_options.begin,
-                               encode_options.end)
-                .as_bytes())?;
+        output.write_all(
+            format!(
+                "=ypart begin={} end={}\r\n",
+                encode_options.begin,
+                encode_options.end
+            ).as_bytes(),
+        )?;
     }
 
     input_file.seek(SeekFrom::Start(encode_options.begin - 1))?;
@@ -123,29 +133,42 @@ pub fn yencode_file(input_file: &mut File,
         };
         input_file.read_exact(&mut buffer[0..bytes_to_read])?;
         checksum.update_with_slice(&buffer[0..bytes_to_read]);
-        output.write_all(yencode_buffer(&buffer[0..bytes_to_read],
-                                      &mut col,
-                                      encode_options.line_length)
-                .as_slice())?;
+        output.write_all(
+            yencode_buffer(
+                &buffer[0..bytes_to_read],
+                &mut col,
+                encode_options.line_length,
+            ).as_slice(),
+        )?;
         remainder -= bytes_to_read;
     }
 
     if encode_options.parts > 1 {
-        output.write_all(format!("\r\n=yend size={} part={} pcrc32={:08x}\r\n",
-                               checksum.num_bytes,
-                               encode_options.part,
-                               checksum.crc)
-                .as_bytes())?;
+        output.write_all(
+            format!(
+                "\r\n=yend size={} part={} pcrc32={:08x}\r\n",
+                checksum.num_bytes,
+                encode_options.part,
+                checksum.crc
+            ).as_bytes(),
+        )?;
     } else {
-        output.write_all(format!("\r\n=yend size={} crc32={:08x}\r\n",
-                               checksum.num_bytes,
-                               checksum.crc)
-                .as_bytes())?;
+        output.write_all(
+            format!(
+                "\r\n=yend size={} crc32={:08x}\r\n",
+                checksum.num_bytes,
+                checksum.crc
+            ).as_bytes(),
+        )?;
     }
     Ok(())
 }
 
-/// Encode the byte slice into a vector of yEncoded bytes, with the maximum of `line_length` characters per line.
+/// Encode the byte slice into a vector of yEncoded bytes.
+///
+/// Lines are wrapped with a maximum of `line_length` characters per line.
+/// Does not include the header and footer lines. These are only produced
+/// by `yencode_stream` and `yencode_file`.
 pub fn yencode_buffer(input: &[u8], col: &mut u8, line_length: u8) -> Vec<u8> {
     let mut output = Vec::<u8>::with_capacity(input.len()); //TODO remove this heap alloc
     for &b in input {
@@ -185,7 +208,7 @@ fn yencode_byte(input_byte: u8, output: &mut [u8; 2]) -> usize {
 #[cfg(test)]
 mod tests {
     use super::{yencode_byte, yencode_buffer};
-    use super::super::constants::{ESCAPE, TAB, CR, LF, SPACE};
+    use super::super::constants::{ESCAPE, CR, LF};
 
     #[test]
     fn escape_null() {
