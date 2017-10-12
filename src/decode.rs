@@ -391,10 +391,10 @@ fn parse_header_line(line_buf: &[u8], offset: usize) -> Result<MetaData, DecodeE
 }
 
 fn is_known_keyword(keyword_slice: &[u8]) -> bool {
-    keyword_slice == b"name" || keyword_slice == b"line" || keyword_slice == b"size" ||
-        keyword_slice == b"part" ||
-        keyword_slice == b"begin" || keyword_slice == b"end" || keyword_slice == b"pcrc32" ||
-        keyword_slice == b"crc32"
+    match keyword_slice {
+        b"begin" | b"crc32" | b"end" | b"line"| b"name" | b"part" | b"pcrc32" | b"size" => true,
+        _ => false
+    }
 }
 
 #[cfg(test)]
