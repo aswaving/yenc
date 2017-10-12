@@ -76,7 +76,7 @@ impl EncodeOptions {
 /// # Example
 /// ```rust,no_run
 /// let mut file = std::fs::File::open("test1.bin").unwrap();
-/// let encode_options = yenc::EncodeOptions::new().parts(1);
+/// let encode_options = yenc::EncodeOptions::default().parts(1);
 /// let mut output_file = std::fs::File::create("test1.bin.yenc").unwrap();
 /// yenc::yencode_file(&mut file, "test1.bin", &encode_options, &mut output_file);
 /// ```
