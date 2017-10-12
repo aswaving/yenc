@@ -15,12 +15,12 @@ pub struct EncodeOptions {
     end: u64,
 }
 
-impl EncodeOptions {
+impl Default for EncodeOptions {
     /// Constructs a new EncodeOptions instance, with the following defaults:
     /// line_length = 128.
     /// parts = 1,
     /// part = begin = end = 0
-    pub fn new() -> EncodeOptions {
+    fn default() -> Self {
         EncodeOptions {
             line_length: DEFAULT_LINE_SIZE,
             parts: 1,
@@ -29,7 +29,9 @@ impl EncodeOptions {
             end: 0,
         }
     }
+}
 
+impl EncodeOptions {
     /// Sets the maximum line length.
     pub fn line_length(mut self, line_length: u8) -> EncodeOptions {
         self.line_length = line_length;

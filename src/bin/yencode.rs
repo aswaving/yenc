@@ -16,20 +16,20 @@ fn main() {
     let path = Path::new(&input_filename);
     let filename = path.file_name().unwrap().to_str().unwrap(); // yikes!
     let total_size = input_file.metadata().unwrap().len();
-    let part_size: u64 = total_size / (parts as u64);
+    let part_size: u64 = total_size / u64::from(parts);
 
     for part in 1..parts + 1 {
         let output_filename = format!("{}.{:03}", input_filename, part);
         let mut output_file = File::create(&output_filename).expect("Cannot create file");
 
-        let begin = (part as u64 - 1) * part_size + 1;
+        let begin = (u64::from(part) - 1) * part_size + 1;
         let end = if begin + part_size < total_size {
             begin + part_size - 1
         } else {
             total_size
         };
 
-        let encode_options = yenc::EncodeOptions::new()
+        let encode_options = yenc::EncodeOptions::default()
             .parts(parts)
             .part(part)
             .begin(begin)
