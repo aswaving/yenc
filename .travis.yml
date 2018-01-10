@@ -1,37 +1,38 @@
-sudo: false
 language: rust
-# for kcov
+
+cache: cargo
+
+sudo: false
+
+# Dependencies of kcov, used for cargo-travis
 addons:
   apt:
     packages:
       - libcurl4-openssl-dev
       - libelf-dev
       - libdw-dev
-      - libbfd-dev
       - binutils-dev
-      - cmake 
+      - cmake
     sources:
       - kalakris-cmake
 
-rust:
-  - nightly
-  - beta
-  - stable
-  - 1.13.0
+before_script:
+  - cargo install --force cargo-travis
+  - export PATH=$HOME/.cargo/bin:$PATH
+
 matrix:
+  include:
+    - rust: stable
+    - rust: beta
+    - rust: nightly
   allow_failures:
     - rust: nightly
+    - rust: beta
 
-before_script:
-  - |
-      cargo install --force cargo-travis &&
-      export PATH=$HOME/.cargo/bin:$PATH
-
-# main build
 script:
   - |
       cargo build &&
-      cargo test 
-
+      cargo test
 after_success:
   - cargo coveralls
+
