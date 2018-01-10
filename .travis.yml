@@ -31,7 +31,7 @@ before_script:
 
 script:
   - |
-      cargo test --all --verbose
+      cargo test --verbose
 
 after_success:
   - |
