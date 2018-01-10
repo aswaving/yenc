@@ -1,7 +1,5 @@
 language: rust
 
-cache: cargo
-
 sudo: false
 
 # Dependencies of kcov, used for cargo-travis
@@ -16,23 +14,27 @@ addons:
     sources:
       - kalakris-cmake
 
-before_script:
-  - cargo install --force cargo-travis
-  - export PATH=$HOME/.cargo/bin:$PATH
-
 matrix:
   include:
     - rust: stable
-    - rust: beta
+    - rust: 1.13.0
     - rust: nightly
   allow_failures:
     - rust: nightly
-    - rust: beta
+
+before_script:
+  - |
+    if [ "$TRAVIS_RUST_VERSION" == "nightly" ]; then
+      cargo install --force cargo-travis
+      export PATH=$HOME/.cargo/bin:$PATH
+    fi
 
 script:
   - |
-      cargo build &&
-      cargo test
-after_success:
-  - cargo coveralls
+      cargo test --all --verbose
 
+after_success:
+  - |
+    if [ "$TRAVIS_RUST_VERSION" == "nightly" ]; then
+      cargo coveralls --all
+    fi
