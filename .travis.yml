@@ -1,7 +1,5 @@
 language: rust
 
-sudo: false
-
 # Dependencies of kcov
 addons:
   apt:
