@@ -397,6 +397,42 @@ fn is_known_keyword(keyword_slice: &[u8]) -> bool {
     }
 }
 
+#[test]
+fn parse_valid_header_begin() {
+    let parse_result = parse_header_line(
+            b"=ybegin part=1 line=128 size=189463 name=CatOnKeyboardInSpace001.jpg\n",
+            8,
+        );
+    assert!(parse_result.is_ok());
+    let metadata = parse_result.unwrap();
+    assert_eq!(metadata.part, Some(1));
+    assert_eq!(metadata.size, Some(189463));
+    assert_eq!(metadata.line_length, Some(128));
+    assert_eq!(
+            metadata.name,
+            Some("CatOnKeyboardInSpace001.jpg".to_string())
+        );
+}
+
+#[test]
+fn parse_valid_header_part() {
+    let parse_result = parse_header_line(b"=ypart begin=1 end=189463\n", 7);
+    assert!(parse_result.is_ok());
+    let metadata = parse_result.unwrap();
+    assert_eq!(metadata.begin, Some(1));
+    assert_eq!(metadata.end, Some(189463));
+}
+
+#[test]
+fn parse_valid_footer_end() {
+    let parse_result = parse_header_line(b"=yend size=26624 part=1 pcrc32=ae052b48\n", 6);
+    assert!(parse_result.is_ok());
+    let metadata = parse_result.unwrap();
+    assert_eq!(metadata.part, Some(1));
+    assert_eq!(metadata.size, Some(26624));
+    assert_eq!(metadata.crc32, Some(0xae052b48));
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -432,39 +468,4 @@ mod tests {
         );
     }
 
-    #[test]
-    fn parse_valid_header_begin() {
-        let parse_result = parse_header_line(
-            b"=ybegin part=1 line=128 size=189463 name=CatOnKeyboardInSpace001.jpg\n",
-            8,
-        );
-        assert!(parse_result.is_ok());
-        let metadata = parse_result.unwrap();
-        assert_eq!(metadata.part, Some(1));
-        assert_eq!(metadata.size, Some(189463));
-        assert_eq!(metadata.line_length, Some(128));
-        assert_eq!(
-            metadata.name,
-            Some("CatOnKeyboardInSpace001.jpg".to_string())
-        );
-    }
-
-    #[test]
-    fn parse_valid_header_part() {
-        let parse_result = parse_header_line(b"=ypart begin=1 end=189463\n", 7);
-        assert!(parse_result.is_ok());
-        let metadata = parse_result.unwrap();
-        assert_eq!(metadata.begin, Some(1));
-        assert_eq!(metadata.end, Some(189463));
-    }
-
-    #[test]
-    fn parse_valid_footer_end() {
-        let parse_result = parse_header_line(b"=yend size=26624 part=1 pcrc32=ae052b48\n", 6);
-        assert!(parse_result.is_ok());
-        let metadata = parse_result.unwrap();
-        assert_eq!(metadata.part, Some(1));
-        assert_eq!(metadata.size, Some(26624));
-        assert_eq!(metadata.crc32, Some(0xae052b48));
-    }
 }
