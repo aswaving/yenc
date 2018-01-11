@@ -26,15 +26,8 @@ script:
 after_success:
   - |
     if [ "$TRAVIS_RUST_VERSION" == "nightly" ]; then
-      wget https://github.com/SimonKagstrom/kcov/archive/master.tar.gz &&
-      tar xzf master.tar.gz &&
-      cd kcov-master &&
-      mkdir build &&
-      cd build &&
-      cmake .. &&
-      make &&
-      cd ../.. &&
+      docker pull ragnaroek/kcov:v33
       for file in target/debug/yenc-*[^\.d]; do
-        ./kcov-master/build/src/kcov --exclude-pattern=/.cargo,/usr/lib --verify --coveralls-id="$TRAVIS_JOB_ID" target/kcov "$file"
+        docker run --security-opt seccomp=unconfined -v $(pwd):/source kcov:v33 --exclude-pattern=/.cargo,/usr/lib --verify --coveralls-id="$TRAVIS_JOB_ID" target/kcov "$file"
       done
     fi
