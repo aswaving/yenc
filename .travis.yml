@@ -2,7 +2,7 @@ language: rust
 
 sudo: false
 
-# Dependencies of kcov, used for cargo-travis
+# Dependencies of kcov
 addons:
   apt:
     packages:
@@ -11,8 +11,7 @@ addons:
       - libdw-dev
       - binutils-dev
       - cmake
-    sources:
-      - kalakris-cmake
+      - libiberty-dev
 
 matrix:
   include:
@@ -22,13 +21,6 @@ matrix:
   allow_failures:
     - rust: nightly
 
-before_script:
-  - |
-    if [ "$TRAVIS_RUST_VERSION" == "nightly" ]; then
-      cargo install --force cargo-travis
-      export PATH=$HOME/.cargo/bin:$PATH
-    fi
-
 script:
   - |
       cargo test --verbose
@@ -36,5 +28,15 @@ script:
 after_success:
   - |
     if [ "$TRAVIS_RUST_VERSION" == "nightly" ]; then
-      cargo coveralls --all
+      wget https://github.com/SimonKagstrom/kcov/archive/master.tar.gz &&
+      tar xzf master.tar.gz &&
+      cd kcov-master &&
+      mkdir build &&
+      cd build &&
+      cmake .. &&
+      make &&
+      cd ../.. &&
+      for file in target/debug/yenc-*[^\.d]; do
+        ./kcov-master/build/src/kcov --exclude-pattern=/.cargo,/usr/lib --verify --coveralls-id="$TRAVIS_JOB_ID" target/kcov "$file"
+      done
     fi
