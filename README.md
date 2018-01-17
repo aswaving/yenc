@@ -1,4 +1,6 @@
 [![Build Status](https://travis-ci.org/aswaving/yenc.svg?branch=master)](https://travis-ci.org/aswaving/yenc)
+[![Coveralls](https://img.shields.io/coveralls/aswaving/yenc.svg)](https://coveralls.io/github/aswaving/yenc)
+
 # yenc
 
 Encodes bytes into yEnc text and decodes yEnc encoded text back to bytes.
@@ -30,9 +32,7 @@ results in a new file Cargo.toml.yenc
 
 ```
 =ybegin line=128 size=302 name=Cargo.toml 
-���������4����JgJL����L4�������JgJLZXZX\L4�������JgJ�L��������Jf�X�������j�����X���hL�4�����������JgJL��������J���J��������J����
-�L4����������JgJL�����dYY������X���Y��������Y����L4�������������JgJL�����dYY����X��Y����YZXZX\Y����YL4��������JgJ�L����LVJL�����
-�LVJL������L�4�������JgJLws~L44��������������4
+<yenc encoded data>
 =yend size=302 crc32=FB24333B
 ```
 
