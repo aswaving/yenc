@@ -1,6 +1,17 @@
 language: rust
 
-sudo: false
+sudo: required
+
+# Dependencies of kcov
+addons:
+  apt:
+    packages:
+      - libcurl4-openssl-dev
+      - libelf-dev
+      - libdw-dev
+      - binutils-dev
+      - cmake
+      - libiberty-dev
 
 matrix:
   include:
@@ -12,4 +23,13 @@ matrix:
 
 script:
   - |
-      cargo build && cargo test && cargo doc
+      cargo test --verbose
+after_success:
+  - |
+    if [ "$TRAVIS_RUST_VERSION" == "nightly" ]; then
+      docker pull ragnaroek/kcov:v33
+      for file in target/debug/yenc-*[^\.d]; do
+        docker run --security-opt seccomp=unconfined -v $(pwd):/source kcov:v33 --exclude-pattern=/.cargo,/usr/lib --verify --coveralls-id="$TRAVIS_JOB_ID" target/kcov "$file"
+      done
+    fi
+    
