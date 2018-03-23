@@ -1,10 +1,10 @@
 use std::fs::OpenOptions;
-use std::io::{Read, Write, BufReader, BufRead, Seek, SeekFrom};
+use std::io::{BufRead, BufReader, Read, Seek, SeekFrom, Write};
 use std::path::PathBuf;
 
 use errors::DecodeError;
 use crc32;
-use constants::{NUL, CR, LF, ESCAPE, SPACE, DEFAULT_LINE_SIZE};
+use constants::{CR, DEFAULT_LINE_SIZE, ESCAPE, LF, NUL, SPACE};
 
 #[derive(Default, Debug)]
 struct MetaData {
@@ -23,21 +23,21 @@ struct MetaData {
 ///
 /// # Example
 /// ```rust,no_run
-/// yenc::ydecode_file("test2.bin.yenc", "test2.bin");
+/// yenc::decode_file("test2.bin.yenc", "test2.bin");
 /// ```
 /// # Errors
 /// - when the output file already exists
 ///
-pub fn ydecode_file(input_filename: &str, output_path: &str) -> Result<String, DecodeError> {
+pub fn decode_file(input_filename: &str, output_path: &str) -> Result<String, DecodeError> {
     let mut input_file = OpenOptions::new().read(true).open(input_filename)?;
-    ydecode_stream(&mut input_file, output_path)
+    decode_stream(&mut input_file, output_path)
 }
 
 /// Decodes the data from a stream in a new output file.
 ///
 /// Writes the output to a file with the filename from the header line, and places it in the
 /// output path. The path of the output file is returned.
-pub fn ydecode_stream<R>(read_stream: &mut R, output_path: &str) -> Result<String, DecodeError>
+pub fn decode_stream<R>(read_stream: &mut R, output_path: &str) -> Result<String, DecodeError>
 where
     R: Read,
 {
@@ -64,10 +64,10 @@ where
     }
 
     if yenc_block_found {
-        let mut output_file = OpenOptions::new().create(true).write(true).open(
-            output_pathbuf
-                .as_path(),
-        )?;
+        let mut output_file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .open(output_pathbuf.as_path())?;
 
         let mut footer_found = false;
         while !footer_found {
@@ -90,7 +90,7 @@ where
                 metadata.size = mm.size;
                 metadata.crc32 = mm.crc32;
             } else {
-                let decoded = ydecode_buffer(&line_buf[0..length])?;
+                let decoded = decode_buffer(&line_buf[0..length])?;
                 checksum.update_with_slice(decoded.as_slice());
                 output_file.write_all(decoded.as_slice())?;
             }
@@ -99,7 +99,7 @@ where
             if let Some(expected_size) = metadata.size {
                 if expected_size != checksum.num_bytes {
                     return Err(DecodeError::IncompleteData {
-                        expected_size: expected_size,
+                        expected_size,
                         actual_size: checksum.num_bytes,
                     });
                 }
@@ -112,12 +112,11 @@ where
         } else if let Some(expected_size) = metadata.size {
             if expected_size != checksum.num_bytes {
                 return Err(DecodeError::IncompleteData {
-                    expected_size: expected_size,
+                    expected_size,
                     actual_size: checksum.num_bytes,
                 });
             }
         }
-
     }
     Ok(output_pathbuf.to_str().unwrap().to_string())
 }
@@ -125,7 +124,7 @@ where
 /// Decode the yEncoded byte slice into a vector of bytes.
 ///
 /// Carriage Return (CR) and Line Feed (LF) are ignored.
-pub fn ydecode_buffer(input: &[u8]) -> Result<Vec<u8>, DecodeError> {
+pub fn decode_buffer(input: &[u8]) -> Result<Vec<u8>, DecodeError> {
     let mut output = Vec::<u8>::with_capacity((input.len() as f64 * 1.02) as usize);
     let mut iter = input.iter();
     while let Some(byte) = iter.next() {
@@ -174,217 +173,181 @@ fn parse_header_line(line_buf: &[u8], offset: usize) -> Result<MetaData, DecodeE
         let position = i + offset;
         match state {
             State::End => unreachable!(),
-            State::Keyword => {
-                match c {
-                    b'a'...b'z' | b'0'...b'9' => {
-                        if keyword_start_idx.is_none() {
-                            keyword_start_idx = Some(position);
-                        }
-                        keyword = &line_buf[keyword_start_idx.unwrap()..position + 1];
+            State::Keyword => match c {
+                b'a'...b'z' | b'0'...b'9' => {
+                    if keyword_start_idx.is_none() {
+                        keyword_start_idx = Some(position);
                     }
-                    b'=' => {
-                        if keyword.is_empty() || !is_known_keyword(keyword) {
-                            return Err(DecodeError::InvalidHeader {
-                                line: header_line,
-                                position: position,
-                            });
-                        } else {
-                            state = State::Value;
-                        }
+                    keyword = &line_buf[keyword_start_idx.unwrap()..position + 1];
+                }
+                b'=' => {
+                    if keyword.is_empty() || !is_known_keyword(keyword) {
+                        return Err(DecodeError::InvalidHeader {
+                            line: header_line,
+                            position,
+                        });
+                    } else {
+                        state = State::Value;
                     }
-                    CR | LF => {}
+                }
+                CR | LF => {}
+                _ => {
+                    return Err(DecodeError::InvalidHeader {
+                        line: header_line,
+                        position,
+                    });
+                }
+            },
+            State::Value => match keyword {
+                b"name" => match c {
+                    CR => {}
+                    LF => {
+                        state = State::End;
+                        metadata.name = Some(String::from_utf8_lossy(value).to_string());
+                    }
+                    _ => {
+                        if value_start_idx.is_none() {
+                            value_start_idx = Some(position);
+                        }
+                        value = &line_buf[value_start_idx.unwrap()..position + 1];
+                    }
+                },
+                b"size" => match c {
+                    b'0'...b'9' => {
+                        if value_start_idx.is_none() {
+                            value_start_idx = Some(position);
+                        }
+                        value = &line_buf[value_start_idx.unwrap()..position + 1];
+                    }
+                    SPACE => {
+                        metadata.size = Some(
+                            usize::from_str_radix(&String::from_utf8_lossy(value), 10).unwrap(),
+                        );
+                        state = State::Keyword;
+                        keyword_start_idx = None;
+                        value_start_idx = None;
+                    }
                     _ => {
                         return Err(DecodeError::InvalidHeader {
                             line: header_line,
-                            position: position,
+                            position,
                         });
                     }
-                }
-            }
-            State::Value => {
-                match keyword {
-                    b"name" => {
-                        match c {
-                            CR => {}
-                            LF => {
-                                state = State::End;
-                                metadata.name = Some(String::from_utf8_lossy(value).to_string());
-                            }
-                            _ => {
-                                if value_start_idx.is_none() {
-                                    value_start_idx = Some(position);
-                                }
-                                value = &line_buf[value_start_idx.unwrap()..position + 1];
-                            }
+                },
+                b"begin" => match c {
+                    b'0'...b'9' => {
+                        if value_start_idx.is_none() {
+                            value_start_idx = Some(position);
                         }
+                        value = &line_buf[value_start_idx.unwrap()..position + 1];
                     }
-                    b"size" => {
-                        match c {
-                            b'0'...b'9' => {
-                                if value_start_idx.is_none() {
-                                    value_start_idx = Some(position);
-                                }
-                                value = &line_buf[value_start_idx.unwrap()..position + 1];
-                            }
-                            SPACE => {
-                                metadata.size =
-                                    Some(
-                                        usize::from_str_radix(&String::from_utf8_lossy(value), 10)
-                                            .unwrap(),
-                                    );
-                                state = State::Keyword;
-                                keyword_start_idx = None;
-                                value_start_idx = None;
-                            }
-                            _ => {
-                                return Err(DecodeError::InvalidHeader {
-                                    line: header_line,
-                                    position: position,
-                                });
-                            }
+                    SPACE => {
+                        metadata.begin = Some(
+                            usize::from_str_radix(&String::from_utf8_lossy(value), 10).unwrap(),
+                        );
+                        state = State::Keyword;
+                        keyword_start_idx = None;
+                        value_start_idx = None;
+                    }
+                    _ => {
+                        return Err(DecodeError::InvalidHeader {
+                            line: header_line,
+                            position,
+                        });
+                    }
+                },
+                b"end" => match c {
+                    b'0'...b'9' => {
+                        if value_start_idx.is_none() {
+                            value_start_idx = Some(position);
                         }
+                        value = &line_buf[value_start_idx.unwrap()..position + 1];
                     }
-                    b"begin" => {
-                        match c {
-                            b'0'...b'9' => {
-                                if value_start_idx.is_none() {
-                                    value_start_idx = Some(position);
-                                }
-                                value = &line_buf[value_start_idx.unwrap()..position + 1];
-                            }
-                            SPACE => {
-                                metadata.begin =
-                                    Some(
-                                        usize::from_str_radix(&String::from_utf8_lossy(value), 10)
-                                            .unwrap(),
-                                    );
-                                state = State::Keyword;
-                                keyword_start_idx = None;
-                                value_start_idx = None;
-                            }
-                            _ => {
-                                return Err(DecodeError::InvalidHeader {
-                                    line: header_line,
-                                    position: position,
-                                });
-                            }
+                    SPACE | LF | CR => {
+                        metadata.end = Some(
+                            usize::from_str_radix(&String::from_utf8_lossy(value), 10).unwrap(),
+                        );
+                        state = State::Keyword;
+                        value_start_idx = None;
+                    }
+                    _ => {
+                        return Err(DecodeError::InvalidHeader {
+                            line: header_line,
+                            position,
+                        });
+                    }
+                },
+                b"line" => match c {
+                    b'0'...b'9' => {
+                        if value_start_idx.is_none() {
+                            value_start_idx = Some(position);
                         }
+                        value = &line_buf[value_start_idx.unwrap()..position + 1];
                     }
-                    b"end" => {
-                        match c {
-                            b'0'...b'9' => {
-                                if value_start_idx.is_none() {
-                                    value_start_idx = Some(position);
-                                }
-                                value = &line_buf[value_start_idx.unwrap()..position + 1];
-                            }
-                            SPACE | LF | CR => {
-                                metadata.end =
-                                    Some(
-                                        usize::from_str_radix(&String::from_utf8_lossy(value), 10)
-                                            .unwrap(),
-                                    );
-                                state = State::Keyword;
-                                value_start_idx = None;
-                            }
-                            _ => {
-                                return Err(DecodeError::InvalidHeader {
-                                    line: header_line,
-                                    position: position,
-                                });
-                            }
+                    SPACE => {
+                        metadata.line_length =
+                            Some(u16::from_str_radix(&String::from_utf8_lossy(value), 10).unwrap());
+                        state = State::Keyword;
+                        keyword_start_idx = None;
+                        value_start_idx = None;
+                    }
+                    _ => {
+                        return Err(DecodeError::InvalidHeader {
+                            line: header_line,
+                            position,
+                        });
+                    }
+                },
+                b"part" => match c {
+                    b'0'...b'9' => {
+                        if value_start_idx.is_none() {
+                            value_start_idx = Some(position);
                         }
+                        value = &line_buf[value_start_idx.unwrap()..position + 1];
                     }
-                    b"line" => {
-                        match c {
-                            b'0'...b'9' => {
-                                if value_start_idx.is_none() {
-                                    value_start_idx = Some(position);
-                                }
-                                value = &line_buf[value_start_idx.unwrap()..position + 1];
-                            }
-                            SPACE => {
-                                metadata.line_length =
-                                    Some(
-                                        u16::from_str_radix(&String::from_utf8_lossy(value), 10)
-                                            .unwrap(),
-                                    );
-                                state = State::Keyword;
-                                keyword_start_idx = None;
-                                value_start_idx = None;
-                            }
-                            _ => {
-                                return Err(DecodeError::InvalidHeader {
-                                    line: header_line,
-                                    position: position,
-                                });
-                            }
+                    SPACE => {
+                        metadata.part =
+                            Some(u32::from_str_radix(&String::from_utf8_lossy(value), 10).unwrap());
+                        state = State::Keyword;
+                        keyword_start_idx = None;
+                        value_start_idx = None;
+                    }
+                    _ => {
+                        return Err(DecodeError::InvalidHeader {
+                            line: header_line,
+                            position,
+                        });
+                    }
+                },
+                b"crc32" | b"pcrc32" => match c {
+                    b'0'...b'9' | b'A'...b'F' | b'a'...b'f' => {
+                        if value_start_idx.is_none() {
+                            value_start_idx = Some(position);
                         }
+                        value = &line_buf[value_start_idx.unwrap()..position + 1];
                     }
-                    b"part" => {
-                        match c {
-                            b'0'...b'9' => {
-                                if value_start_idx.is_none() {
-                                    value_start_idx = Some(position);
-                                }
-                                value = &line_buf[value_start_idx.unwrap()..position + 1];
-                            }
-                            SPACE => {
-                                metadata.part =
-                                    Some(
-                                        u32::from_str_radix(&String::from_utf8_lossy(value), 10)
-                                            .unwrap(),
-                                    );
-                                state = State::Keyword;
-                                keyword_start_idx = None;
-                                value_start_idx = None;
-                            }
-                            _ => {
-                                return Err(DecodeError::InvalidHeader {
-                                    line: header_line,
-                                    position: position,
-                                });
-                            }
-                        }
+                    SPACE => {
+                        state = State::Keyword;
+                        metadata.crc32 =
+                            Some(u32::from_str_radix(&String::from_utf8_lossy(value), 16).unwrap());
+                        value_start_idx = None;
                     }
-                    b"crc32" | b"pcrc32" => {
-                        match c {
-                            b'0'...b'9' | b'A'...b'F' | b'a'...b'f' => {
-                                if value_start_idx.is_none() {
-                                    value_start_idx = Some(position);
-                                }
-                                value = &line_buf[value_start_idx.unwrap()..position + 1];
-                            }
-                            SPACE => {
-                                state = State::Keyword;
-                                metadata.crc32 =
-                                    Some(
-                                        u32::from_str_radix(&String::from_utf8_lossy(value), 16)
-                                            .unwrap(),
-                                    );
-                                value_start_idx = None;
-                            }
-                            LF => {
-                                state = State::End;
-                                metadata.crc32 =
-                                    Some(
-                                        u32::from_str_radix(&String::from_utf8_lossy(value), 16)
-                                            .unwrap(),
-                                    );
-                                value_start_idx = None;
-                            }
-                            CR => {}
-                            _ => {
-                                return Err(DecodeError::InvalidHeader {
-                                    line: header_line,
-                                    position: position,
-                                });
-                            }
-                        }
+                    LF => {
+                        state = State::End;
+                        metadata.crc32 =
+                            Some(u32::from_str_radix(&String::from_utf8_lossy(value), 16).unwrap());
+                        value_start_idx = None;
                     }
-                    _ => unreachable!(),
-                }
-            }
+                    CR => {}
+                    _ => {
+                        return Err(DecodeError::InvalidHeader {
+                            line: header_line,
+                            position,
+                        });
+                    }
+                },
+                _ => unreachable!(),
+            },
         };
     }
     Ok(metadata)
@@ -392,71 +355,94 @@ fn parse_header_line(line_buf: &[u8], offset: usize) -> Result<MetaData, DecodeE
 
 fn is_known_keyword(keyword_slice: &[u8]) -> bool {
     match keyword_slice {
-        b"begin" | b"crc32" | b"end" | b"line"| b"name" | b"part" | b"pcrc32" | b"size" => true,
-        _ => false
+        b"begin" | b"crc32" | b"end" | b"line" | b"name" | b"part" | b"pcrc32" | b"size" => true,
+        _ => false,
     }
 }
 
-#[test]
-fn parse_valid_header_begin() {
-    let parse_result = parse_header_line(
-            b"=ybegin part=1 line=128 size=189463 name=CatOnKeyboardInSpace001.jpg\n",
-            8,
-        );
-    assert!(parse_result.is_ok());
-    let metadata = parse_result.unwrap();
-    assert_eq!(metadata.part, Some(1));
-    assert_eq!(metadata.size, Some(189463));
-    assert_eq!(metadata.line_length, Some(128));
-    assert_eq!(
-            metadata.name,
-            Some("CatOnKeyboardInSpace001.jpg".to_string())
-        );
-}
-
-#[test]
-fn parse_valid_header_part() {
-    let parse_result = parse_header_line(b"=ypart begin=1 end=189463\n", 7);
-    assert!(parse_result.is_ok());
-    let metadata = parse_result.unwrap();
-    assert_eq!(metadata.begin, Some(1));
-    assert_eq!(metadata.end, Some(189463));
-}
-
-#[test]
-fn parse_valid_footer_end() {
-    let parse_result = parse_header_line(b"=yend size=26624 part=1 pcrc32=ae052b48\n", 6);
-    assert!(parse_result.is_ok());
-    let metadata = parse_result.unwrap();
-    assert_eq!(metadata.part, Some(1));
-    assert_eq!(metadata.size, Some(26624));
-    assert_eq!(metadata.crc32, Some(0xae052b48));
-}
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{parse_header_line, decode_buffer};
+
+    #[test]
+    fn parse_valid_footer_end_nl() {
+        let parse_result = parse_header_line(b"=yend size=26624 part=1 pcrc32=ae052b48\n", 6);
+        assert!(parse_result.is_ok());
+        let metadata = parse_result.unwrap();
+        assert_eq!(metadata.part, Some(1));
+        assert_eq!(metadata.size, Some(26624));
+        assert_eq!(metadata.crc32, Some(0xae052b48));
+    }
+
+    #[test]
+    fn parse_valid_footer_end_space() {
+        let parse_result = parse_header_line(b"=yend size=26624 part=1 pcrc32=ae052b48\n", 6);
+        assert!(parse_result.is_ok());
+        let metadata = parse_result.unwrap();
+        assert_eq!(metadata.part, Some(1));
+        assert_eq!(metadata.size, Some(26624));
+        assert_eq!(metadata.crc32, Some(0xae052b48));
+    }
+
+    #[test]
+    fn parse_valid_header_begin() {
+        let parse_result = parse_header_line(
+                b"=ybegin part=1 line=128 size=189463 name=CatOnKeyboardInSpace001.jpg\n",
+                8,
+            );
+        assert!(parse_result.is_ok());
+        let metadata = parse_result.unwrap();
+        assert_eq!(metadata.part, Some(1));
+        assert_eq!(metadata.size, Some(189463));
+        assert_eq!(metadata.line_length, Some(128));
+        assert_eq!(
+                metadata.name,
+                Some("CatOnKeyboardInSpace001.jpg".to_string())
+            );
+    }
+
+    #[test]
+    fn parse_valid_header_part() {
+        let parse_result = parse_header_line(b"=ypart begin=1 end=189463\n", 7);
+        assert!(parse_result.is_ok());
+        let metadata = parse_result.unwrap();
+        assert_eq!(metadata.begin, Some(1));
+        assert_eq!(metadata.end, Some(189463));
+    }
+
+    #[test]
+    fn invalid_header_unknown_keyword() {
+        let parse_result = parse_header_line(b"=yparts begin=1 end=189463\n", 7);
+        assert!(parse_result.is_err());
+    }
+
+    #[test]
+    fn invalid_header_empty_keyword() {
+        let parse_result = parse_header_line(b"=yparts =1 end=189463\n", 7);
+        assert!(parse_result.is_err());
+    }
 
     #[test]
     fn decode_invalid() {
-        assert!(ydecode_buffer(&[b'=']).unwrap().is_empty());
+        assert!(decode_buffer(&[b'=']).unwrap().is_empty());
     }
 
     #[test]
     fn decode_valid_ff() {
-        assert_eq!(&vec![0xff - 0x2A], &ydecode_buffer(&[0xff]).unwrap());
+        assert_eq!(&vec![0xff - 0x2A], &decode_buffer(&[0xff]).unwrap());
     }
 
     #[test]
     fn decode_valid_01() {
-        assert_eq!(&vec![0xff - 0x28], &ydecode_buffer(&[0x01]).unwrap());
+        assert_eq!(&vec![0xff - 0x28], &decode_buffer(&[0x01]).unwrap());
     }
 
     #[test]
     fn decode_valid_esc_ff() {
         assert_eq!(
             &vec![0xff - 0x40 - 0x2A],
-            &ydecode_buffer(&[b'=', 0xff]).unwrap()
+            &decode_buffer(&[b'=', 0xff]).unwrap()
         );
     }
 
@@ -464,7 +450,7 @@ mod tests {
     fn decode_valid_esc_01() {
         assert_eq!(
             &vec![0xff - 0x40 - 0x2A + 2],
-            &ydecode_buffer(&[b'=', 0x01]).unwrap()
+            &decode_buffer(&[b'=', 0x01]).unwrap()
         );
     }
 

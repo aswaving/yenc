@@ -29,18 +29,20 @@ impl From<io::Error> for DecodeError {
 impl fmt::Display for DecodeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            DecodeError::IncompleteData { ref expected_size, ref actual_size } => {
-                write!(f,
-                       "Incomplete data: expected size {}, actual size {}",
-                       expected_size,
-                       actual_size)
-            }
-            DecodeError::InvalidHeader { ref line, position } => {
-                write!(f,
-                       "Invalid header: \n{}\n{}^",
-                       line,
-                       iter::repeat(" ").take(position).collect::<String>())
-            }
+            DecodeError::IncompleteData {
+                ref expected_size,
+                ref actual_size,
+            } => write!(
+                f,
+                "Incomplete data: expected size {}, actual size {}",
+                expected_size, actual_size
+            ),
+            DecodeError::InvalidHeader { ref line, position } => write!(
+                f,
+                "Invalid header: \n{}\n{}^",
+                line,
+                iter::repeat(" ").take(position).collect::<String>()
+            ),
             DecodeError::InvalidChecksum => write!(f, "Invalid checksum"),
             DecodeError::IoError(ref err) => write!(f, "IO error {}", err),
         }
