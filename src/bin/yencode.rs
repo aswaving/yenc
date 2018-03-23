@@ -10,11 +10,9 @@ fn main() {
     let input_filename = args().nth(1).expect("Specify input file");
     let parts = u32::from_str(&args().nth(2).expect("Specify number of parts")).unwrap();
 
-
-    let mut input_file = File::open(&input_filename).expect("Cannot open file");
+    let input_file = File::open(&input_filename).expect("Cannot open file");
 
     let path = Path::new(&input_filename);
-    let filename = path.file_name().unwrap().to_str().unwrap(); // yikes!
     let total_size = input_file.metadata().unwrap().len();
     let part_size: u64 = total_size / u64::from(parts);
 
@@ -35,7 +33,7 @@ fn main() {
             .begin(begin)
             .end(end);
 
-        match yenc::yencode_file(&mut input_file, filename, &encode_options, &mut output_file) {
+        match yenc::encode_file(path, &encode_options, &mut output_file) {
             Err(err) => {
                 println!(
                     "Error yEncoding {} to {}: {}",

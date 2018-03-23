@@ -6,8 +6,8 @@ mod encode;
 mod decode;
 
 pub use errors::DecodeError;
-pub use encode::{yencode_file, yencode_buffer, EncodeOptions};
-pub use decode::{ydecode_file, ydecode_stream, ydecode_buffer};
+pub use encode::{encode_buffer, encode_file, EncodeOptions};
+pub use decode::{decode_buffer, decode_file, decode_stream};
 
 #[cfg(test)]
 mod tests {
@@ -16,8 +16,15 @@ mod tests {
     #[test]
     fn equality() {
         let b = (0..256).map(|c| c as u8).collect::<Vec<u8>>();
-        let mut col = 0;
-        assert_eq!(b,
-                   ydecode_buffer(&yencode_buffer(&b, &mut col, 128)).unwrap().as_slice());
+        assert_eq!(
+            b,
+            {
+                let mut col = 0;
+                let mut output = Vec::new();
+                encode_buffer(&b, &mut col, 128, &mut output);
+                decode_buffer(&output)
+            }.unwrap()
+                .as_slice()
+        );
     }
 }

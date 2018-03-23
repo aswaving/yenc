@@ -10,3 +10,7 @@ keywords = ["yenc", "encode", "decode"]
 license = "MIT"
 
 [dependencies]
+
+[dev-dependencies]
+tempdir = "0.3.5"
+rand = "0.4.2"
