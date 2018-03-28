@@ -4,4 +4,5 @@ pub const LF: u8 = b'\n';
 pub const CR: u8 = b'\r';
 pub const SPACE: u8 = b' ';
 pub const ESCAPE: u8 = b'=';
+pub const DOT: u8 = b'.';
 pub const DEFAULT_LINE_SIZE: u8 = 128;

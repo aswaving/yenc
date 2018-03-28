@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use errors::DecodeError;
 use crc32;
-use constants::{CR, DEFAULT_LINE_SIZE, ESCAPE, LF, NUL, SPACE};
+use constants::{CR, DEFAULT_LINE_SIZE, ESCAPE, LF, NUL, SPACE, DOT};
 
 #[derive(Default, Debug)]
 struct MetaData {
@@ -126,17 +126,29 @@ where
 /// Carriage Return (CR) and Line Feed (LF) are ignored.
 pub fn decode_buffer(input: &[u8]) -> Result<Vec<u8>, DecodeError> {
     let mut output = Vec::<u8>::with_capacity((input.len() as f64 * 1.02) as usize);
-    let mut iter = input.iter();
-    while let Some(byte) = iter.next() {
+    let mut iter = input.iter().enumerate();
+    while let Some((col, byte)) = iter.next() {
         let mut byte = *byte;
         match byte {
             NUL | CR | LF => {
                 // for now, just continue
                 continue;
             }
+            DOT => {
+                if col == 0 {
+                    match iter.next() {
+                        Some((_, &DOT)) => {}
+                        Some((_, b)) => {
+                            output.push(byte.overflowing_sub(42).0);
+                            byte = *b;
+                        }
+                        None => {}
+                    }
+                }
+            }
             ESCAPE => {
                 match iter.next() {
-                    Some(b) => {
+                    Some((_, b)) => {
                         byte = b.overflowing_sub(64).0;
                     }
                     None => {
