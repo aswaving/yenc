@@ -2,9 +2,9 @@ use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom, Write};
 use std::path::PathBuf;
 
-use errors::DecodeError;
+use constants::{CR, DEFAULT_LINE_SIZE, DOT, ESCAPE, LF, NUL, SPACE};
 use crc32;
-use constants::{CR, DEFAULT_LINE_SIZE, ESCAPE, LF, NUL, SPACE, DOT};
+use errors::DecodeError;
 
 #[derive(Default, Debug)]
 struct MetaData {
@@ -372,10 +372,9 @@ fn is_known_keyword(keyword_slice: &[u8]) -> bool {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
-    use super::{parse_header_line, decode_buffer};
+    use super::{decode_buffer, parse_header_line};
 
     #[test]
     fn parse_valid_footer_end_nl() {
@@ -400,18 +399,18 @@ mod tests {
     #[test]
     fn parse_valid_header_begin() {
         let parse_result = parse_header_line(
-                b"=ybegin part=1 line=128 size=189463 name=CatOnKeyboardInSpace001.jpg\n",
-                8,
-            );
+            b"=ybegin part=1 line=128 size=189463 name=CatOnKeyboardInSpace001.jpg\n",
+            8,
+        );
         assert!(parse_result.is_ok());
         let metadata = parse_result.unwrap();
         assert_eq!(metadata.part, Some(1));
         assert_eq!(metadata.size, Some(189463));
         assert_eq!(metadata.line_length, Some(128));
         assert_eq!(
-                metadata.name,
-                Some("CatOnKeyboardInSpace001.jpg".to_string())
-            );
+            metadata.name,
+            Some("CatOnKeyboardInSpace001.jpg".to_string())
+        );
     }
 
     #[test]
@@ -466,4 +465,11 @@ mod tests {
         );
     }
 
+    #[test]
+    fn decode_valid_prepended_dots() {
+        assert_eq!(
+            &vec![b'.' - 0x2A],
+            &decode_buffer(&b".."[..]).unwrap()
+        );
+    }
 }
