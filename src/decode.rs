@@ -469,7 +469,15 @@ mod tests {
     fn decode_valid_prepended_dots() {
         assert_eq!(
             &vec![b'.' - 0x2A],
-            &decode_buffer(&b".."[..]).unwrap()
+            &decode_buffer(b"..").unwrap()
+        );
+    }
+
+    #[test]
+    fn decode_valid_prepended_single_dot() {
+        assert_eq!(
+            &vec![b'.' - 0x2A, 0xff - 0x2A],
+            &decode_buffer(&[b'.', 0xff]).unwrap()
         );
     }
 }
