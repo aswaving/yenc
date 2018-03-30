@@ -2,9 +2,9 @@ use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom, Write};
 use std::path::PathBuf;
 
-use errors::DecodeError;
+use constants::{CR, DEFAULT_LINE_SIZE, DOT, ESCAPE, LF, NUL, SPACE};
 use crc32;
-use constants::{CR, DEFAULT_LINE_SIZE, ESCAPE, LF, NUL, SPACE};
+use errors::DecodeError;
 
 #[derive(Default, Debug)]
 struct MetaData {
@@ -126,17 +126,29 @@ where
 /// Carriage Return (CR) and Line Feed (LF) are ignored.
 pub fn decode_buffer(input: &[u8]) -> Result<Vec<u8>, DecodeError> {
     let mut output = Vec::<u8>::with_capacity((input.len() as f64 * 1.02) as usize);
-    let mut iter = input.iter();
-    while let Some(byte) = iter.next() {
+    let mut iter = input.iter().enumerate();
+    while let Some((col, byte)) = iter.next() {
         let mut byte = *byte;
         match byte {
             NUL | CR | LF => {
                 // for now, just continue
                 continue;
             }
+            DOT => {
+                if col == 0 {
+                    match iter.next() {
+                        Some((_, &DOT)) => {}
+                        Some((_, b)) => {
+                            output.push(byte.overflowing_sub(42).0);
+                            byte = *b;
+                        }
+                        None => {}
+                    }
+                }
+            }
             ESCAPE => {
                 match iter.next() {
-                    Some(b) => {
+                    Some((_, b)) => {
                         byte = b.overflowing_sub(64).0;
                     }
                     None => {
@@ -360,10 +372,9 @@ fn is_known_keyword(keyword_slice: &[u8]) -> bool {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
-    use super::{parse_header_line, decode_buffer};
+    use super::{decode_buffer, parse_header_line};
 
     #[test]
     fn parse_valid_footer_end_nl() {
@@ -388,18 +399,18 @@ mod tests {
     #[test]
     fn parse_valid_header_begin() {
         let parse_result = parse_header_line(
-                b"=ybegin part=1 line=128 size=189463 name=CatOnKeyboardInSpace001.jpg\n",
-                8,
-            );
+            b"=ybegin part=1 line=128 size=189463 name=CatOnKeyboardInSpace001.jpg\n",
+            8,
+        );
         assert!(parse_result.is_ok());
         let metadata = parse_result.unwrap();
         assert_eq!(metadata.part, Some(1));
         assert_eq!(metadata.size, Some(189463));
         assert_eq!(metadata.line_length, Some(128));
         assert_eq!(
-                metadata.name,
-                Some("CatOnKeyboardInSpace001.jpg".to_string())
-            );
+            metadata.name,
+            Some("CatOnKeyboardInSpace001.jpg".to_string())
+        );
     }
 
     #[test]
@@ -454,4 +465,19 @@ mod tests {
         );
     }
 
+    #[test]
+    fn decode_valid_prepended_dots() {
+        assert_eq!(
+            &vec![b'.' - 0x2A],
+            &decode_buffer(b"..").unwrap()
+        );
+    }
+
+    #[test]
+    fn decode_valid_prepended_single_dot() {
+        assert_eq!(
+            &vec![b'.' - 0x2A, 0xff - 0x2A],
+            &decode_buffer(&[b'.', 0xff]).unwrap()
+        );
+    }
 }
