@@ -1,10 +1,10 @@
-use crc32;
 use constants::{CR, DEFAULT_LINE_SIZE, ESCAPE, LF, NUL};
+use crc32;
 
-use std::path::Path;
 use std::fs::File;
 use std::io;
 use std::io::{Read, Seek, SeekFrom, Write};
+use std::path::Path;
 
 /// Options for encoding
 #[derive(Debug)]
@@ -185,25 +185,28 @@ pub fn encode_buffer(input: &[u8], col: &mut u8, line_length: u8, writer: &mut W
 
 #[inline]
 fn encode_byte(input_byte: u8) -> ([u8; 2], usize) {
-    let mut output = [0u8; 2];
-    let mut idx = 0;
-    let mut output_byte = input_byte.overflowing_add(42).0;
-    match output_byte {
+    let mut output = (0, 0);
+
+    let output_byte = input_byte.overflowing_add(42).0;
+    let len = match output_byte {
         NUL | CR | LF | ESCAPE => {
-            output[idx] = ESCAPE;
-            idx += 1;
-            output_byte = output_byte.overflowing_add(64).0;
+            output.0 = ESCAPE;
+            output.1 = output_byte.overflowing_add(64).0;
+            2
         }
-        _ => {}
+        _ => {
+            output.0 = output_byte;
+            1
+        }
     };
-    output[idx] = output_byte;
-    (output, idx + 1)
+    let output_array = [output.0, output.1];
+    (output_array, len)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{encode_buffer, encode_byte};
     use super::super::constants::{CR, ESCAPE, LF};
+    use super::{encode_buffer, encode_byte};
 
     #[test]
     fn escape_null() {
