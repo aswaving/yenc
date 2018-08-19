@@ -8,9 +8,15 @@ documentation = "https://docs.rs/yenc/0.0.4/yenc/"
 categories = ["encoding"]
 keywords = ["yenc", "encode", "decode"]
 license = "MIT"
+autobenches = false
 
 [dependencies]
 
 [dev-dependencies]
+criterion = "0.2"
 tempdir = "0.3.5"
 rand = "0.4.2"
+
+[[bench]]
+name = "encode"
+harness = false
