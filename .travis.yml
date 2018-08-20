@@ -16,7 +16,7 @@ addons:
 matrix:
   include:
     - rust: stable
-    - rust: 1.17.0
+    - rust: 1.19.0
     - rust: nightly
   allow_failures:
     - rust: nightly
