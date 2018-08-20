@@ -9,7 +9,7 @@
 # yenc
 
 Encodes bytes into yEnc text and decodes yEnc encoded text back to bytes.
-Requires compiler version >= v1.19.0.
+Requires compiler version >= v1.25.0.
 
 See [documentation](http://docs.rs/yenc).
 For more information on yEnc see [Wikipedia](https://en.wikipedia.org/wiki/YEnc) and [yenc.org](http://www.yenc.org).
