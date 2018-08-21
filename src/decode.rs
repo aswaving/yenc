@@ -37,7 +37,7 @@ pub fn decode_file(input_filename: &str, output_path: &str) -> Result<String, De
 ///
 /// Writes the output to a file with the filename from the header line, and places it in the
 /// output path. The path of the output file is returned.
-pub fn decode_stream<R>(read_stream: &mut R, output_path: &str) -> Result<String, DecodeError>
+pub fn decode_stream<R>(read_stream: R, output_path: &str) -> Result<String, DecodeError>
 where
     R: Read,
 {

@@ -1,13 +1,13 @@
 //! [yEnc](http://www.yenc.org) is an encoding scheme to include binary files in Usenet messages.
-mod crc32;
 mod constants;
-mod errors;
-mod encode;
+mod crc32;
 mod decode;
+mod encode;
+mod errors;
 
-pub use errors::DecodeError;
-pub use encode::{encode_buffer, encode_file, EncodeOptions};
 pub use decode::{decode_buffer, decode_file, decode_stream};
+pub use encode::{encode_buffer, encode_file, encode_stream, EncodeOptions};
+pub use errors::DecodeError;
 
 #[cfg(test)]
 mod tests {
@@ -19,9 +19,8 @@ mod tests {
         assert_eq!(
             b,
             {
-                let mut col = 0;
                 let mut output = Vec::new();
-                encode_buffer(&b, &mut col, 128, &mut output);
+                encode_buffer(&b, 0, 128, &mut output).unwrap();
                 decode_buffer(&output)
             }.unwrap()
                 .as_slice()

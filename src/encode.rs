@@ -3,7 +3,7 @@ use crc32;
 
 use std::fs::File;
 use std::io;
-use std::io::{Read, Seek, SeekFrom, Write};
+use std::io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 use std::path::Path;
 
 /// Options for encoding
@@ -33,6 +33,10 @@ impl Default for EncodeOptions {
 }
 
 impl EncodeOptions {
+    pub fn new() -> EncodeOptions {
+        Default::default()
+    }
+
     /// Sets the maximum line length.
     pub fn line_length(mut self, line_length: u8) -> EncodeOptions {
         self.line_length = line_length;
@@ -83,84 +87,94 @@ impl EncodeOptions {
 /// # Errors
 /// - when the output file already exists
 ///
-pub fn encode_file<P: AsRef<Path>>(
+pub fn encode_file<P, W>(
     input_path: P,
     encode_options: &EncodeOptions,
-    output: &mut Write,
-) -> Result<(), io::Error> {
-    let mut checksum = crc32::Crc32::new();
-    let mut buffer = [0u8; 8192];
-    let mut col = 0;
+    output: W,
+) -> Result<(), io::Error>
+where
+    P: AsRef<Path>,
+    W: Write,
+{
     let input_filename = input_path.as_ref().file_name();
     let input_filename = match input_filename {
         Some(s) => s.to_str().unwrap_or(""),
         None => "",
     };
-    let mut input_file = File::open(&input_path)?;
+    let input_file = File::open(&input_path)?;
+    let length = input_file.metadata()?.len();
+
+    encode_stream(input_file, output, length, input_filename, encode_options)
+}
+
+pub fn encode_stream<R, W>(
+    input: R,
+    output: W,
+    length: u64,
+    input_filename: &str,
+    encode_options: &EncodeOptions,
+) -> io::Result<()>
+where
+    R: Read + Seek,
+    W: Write,
+{
+    let mut rdr = BufReader::new(input);
+    let mut checksum = crc32::Crc32::new();
+    let mut buffer = [0u8; 8192];
+    let mut col = 0;
+    let mut output = BufWriter::new(output);
 
     if encode_options.parts == 1 {
-        output.write_all(
-            format!(
-                "=ybegin line={} size={} name={}\r\n",
-                encode_options.line_length,
-                input_file.metadata()?.len(),
-                input_filename
-            ).as_bytes(),
+        write!(
+            output,
+            "=ybegin line={} size={} name={}\r\n",
+            encode_options.line_length, length, input_filename
         )?;
     } else {
-        output.write_all(
-            format!(
-                "=ybegin part={} line={} size={} name={}\r\n",
-                encode_options.part,
-                encode_options.line_length,
-                input_file.metadata()?.len(),
-                input_filename
-            ).as_bytes(),
+        write!(
+            output,
+            "=ybegin part={} line={} size={} name={}\r\n",
+            encode_options.part, encode_options.line_length, length, input_filename
         )?;
     }
 
     if encode_options.parts > 1 {
-        output.write_all(
-            format!(
-                "=ypart begin={} end={}\r\n",
-                encode_options.begin, encode_options.end
-            ).as_bytes(),
+        write!(
+            output,
+            "=ypart begin={} end={}\r\n",
+            encode_options.begin, encode_options.end
         )?;
     }
 
-    input_file.seek(SeekFrom::Start(encode_options.begin - 1))?;
+    rdr.seek(SeekFrom::Start(encode_options.begin - 1))?;
 
     let mut remainder = (encode_options.end - encode_options.begin + 1) as usize;
     while remainder > 0 {
-        let bytes_to_read = if remainder > buffer.len() {
-            buffer.len()
+        let buf_slice = if remainder > buffer.len() {
+            &mut buffer[..]
         } else {
-            remainder
+            &mut buffer[0..remainder]
         };
-        input_file.read_exact(&mut buffer[0..bytes_to_read])?;
-        checksum.update_with_slice(&buffer[0..bytes_to_read]);
-        encode_buffer(
-            &buffer[0..bytes_to_read],
-            &mut col,
-            encode_options.line_length,
-            output,
-        );
-        remainder -= bytes_to_read;
+        rdr.read_exact(buf_slice)?;
+        checksum.update_with_slice(buf_slice);
+        match encode_buffer(buf_slice, col, encode_options.line_length, &mut output) {
+            Ok(c) => col = c,
+            Err(e) => return Err(e),
+        };
+        remainder -= buf_slice.len();
     }
 
     if encode_options.parts > 1 {
-        output.write_all(
-            format!(
-                "\r\n=yend size={} part={} pcrc32={:08x}\r\n",
-                checksum.num_bytes, encode_options.part, checksum.crc
-            ).as_bytes(),
+        write!(
+            output,
+            "\r\n=yend size={} part={} pcrc32={:08x}\r\n",
+            checksum.num_bytes, encode_options.part, checksum.crc
         )?;
     } else {
-        output.write_all(
-            format!(
-                "\r\n=yend size={} crc32={:08x}\r\n",
-                checksum.num_bytes, checksum.crc
-            ).as_bytes(),
+        write!(
+            output,
+            "\r\n=yend size={} crc32={:08x}\r\n",
+            checksum.num_bytes, checksum.crc
         )?;
     }
     Ok(())
@@ -171,20 +185,32 @@ pub fn encode_file<P: AsRef<Path>>(
 /// Lines are wrapped with a maximum of `line_length` characters per line.
 /// Does not include the header and footer lines. These are only produced
 /// by `encode_stream` and `encode_file`.
-pub fn encode_buffer(input: &[u8], col: &mut u8, line_length: u8, writer: &mut Write) {
-    for &b in input {
+pub fn encode_buffer<W>(input: &[u8], col: u8, line_length: u8, writer: W) -> io::Result<u8>
+where
+    W: Write,
+{
+    let mut col = col;
+    let mut writer = writer;
+    let mut v = Vec::<u8>::with_capacity(input.len() * 102 / 100);
+    input.iter().for_each(|&b| {
         let (encoded, encoded_len) = encode_byte(b);
-        writer.write_all(&encoded[0..encoded_len]).unwrap();
-        *col += encoded_len as u8;
-        if *col >= line_length {
-            writer.write_all(&[CR, LF]).unwrap();
-            *col = 0;
+        v.push(encoded.0);
+        if encoded_len > 1 {
+            v.push(encoded.1);
         }
-    }
+        col += encoded_len as u8;
+        if col >= line_length {
+            v.push(CR);
+            v.push(LF);
+            col = 0;
+        }
+    });
+    writer.write_all(&v)?;
+    Ok(col)
 }
 
-#[inline]
-fn encode_byte(input_byte: u8) -> ([u8; 2], usize) {
+#[inline(always)]
+fn encode_byte(input_byte: u8) -> ((u8, u8), usize) {
     let mut output = (0, 0);
 
     let output_byte = input_byte.overflowing_add(42).0;
@@ -199,18 +225,17 @@ fn encode_byte(input_byte: u8) -> ([u8; 2], usize) {
             1
         }
     };
-    let output_array = [output.0, output.1];
-    (output_array, len)
+    (output, len)
 }
 
 #[cfg(test)]
 mod tests {
-    use super::super::constants::{CR, ESCAPE, LF};
+    use super::super::constants::{CR, ESCAPE, LF, NUL};
     use super::{encode_buffer, encode_byte};
 
     #[test]
     fn escape_null() {
-        assert_eq!(([ESCAPE, 0x40], 2), encode_byte(214));
+        assert_eq!(((ESCAPE, 0x40), 2), encode_byte(214));
     }
 
     /*
@@ -224,12 +249,12 @@ mod tests {
 
     #[test]
     fn escape_lf() {
-        assert_eq!(([ESCAPE, 0x4A], 2), encode_byte(214 + LF));
+        assert_eq!(((ESCAPE, 0x4A), 2), encode_byte(214 + LF));
     }
 
     #[test]
     fn escape_cr() {
-        assert_eq!(([ESCAPE, 0x4D], 2), encode_byte(214 + CR));
+        assert_eq!(((ESCAPE, 0x4D), 2), encode_byte(214 + CR));
     }
 
     /*    
@@ -243,11 +268,42 @@ mod tests {
 
     #[test]
     fn escape_equal_sign() {
-        assert_eq!(([ESCAPE, 0x7D], 2), encode_byte(ESCAPE - 42));
+        assert_eq!(((ESCAPE, 0x7D), 2), encode_byte(ESCAPE - 42));
     }
 
     #[test]
     fn non_escaped() {
-        assert_eq!(([42, 0], 1), encode_byte(0));
+        for x in 0..256u16 {
+            let encoded = (x as u8).overflowing_add(42).0;
+            if encoded != NUL && encoded != CR && encoded != LF && encoded != ESCAPE {
+                assert_eq!(((encoded, 0), 1), encode_byte(x as u8));
+            }
+        }
+    }
+
+    #[test]
+    fn test_encode_buffer() {
+        let buffer = (0..256u16).map(|c| c as u8).collect::<Vec<u8>>();
+        #[cfg_attr(rustfmt, rustfmt_skip)]
+        const EXPECTED: [u8; 264] =
+                       [42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 
+                       125, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 
+                       81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 
+                       101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 
+                       117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129, 130, 131, 132, 
+                       133, 134, 135, 136, 137, 138, 139, 140, 141, 142, 143, 144, 145, 146, 147, 148, 
+                       149, 150, 151, 152, 153, 154, 155, 156, 157, 158, 159, 160, 161, 162, 163, 164, 
+                       165, 166, 167, 168, 13, 10, 169, 170, 171, 172, 173, 174, 175, 176, 177, 178, 
+                       179, 180, 181, 182, 183, 184, 185, 186, 187, 188, 189, 190, 191, 192, 193, 194, 
+                       195, 196, 197, 198, 199, 200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 
+                       211, 212, 213, 214, 215, 216,217, 218, 219, 220, 221, 222, 223, 224, 225, 226, 
+                       227, 228, 229, 230, 231, 232, 233, 234, 235, 236, 237, 238, 239, 240, 241, 242, 
+                       243, 244, 245, 246, 247, 248, 249, 250, 251, 252, 253, 254, 255, 61, 64, 1, 2, 3, 
+                       4, 5, 6, 7, 8, 9, 61, 74, 11, 12, 61, 77, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 
+                       24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 13, 10, 38, 39, 40, 41];
+        let mut encoded = Vec::<u8>::new();
+        let result = encode_buffer(&buffer, 0, 128, &mut encoded);
+        assert!(result.is_ok());
+        assert_eq!(encoded.as_slice(), &EXPECTED[..]);
     }
 }

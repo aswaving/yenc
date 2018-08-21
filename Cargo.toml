@@ -12,6 +12,9 @@ autobenches = false
 
 [dependencies]
 
+[profile.release]
+debug = true
+
 [dev-dependencies]
 criterion = "0.2"
 tempdir = "0.3.5"
@@ -19,4 +22,8 @@ rand = "0.4.2"
 
 [[bench]]
 name = "encode"
+harness = false
+
+[[bench]]
+name = "decode"
 harness = false
