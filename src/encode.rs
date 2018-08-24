@@ -1,4 +1,4 @@
-use constants::{CR, DEFAULT_LINE_SIZE, ESCAPE, LF, NUL};
+use constants::{CR, DEFAULT_LINE_SIZE, DOT, ESCAPE, LF, NUL};
 use crc32;
 
 use std::fs::File;
@@ -191,14 +191,21 @@ where
 {
     let mut col = col;
     let mut writer = writer;
-    let mut v = Vec::<u8>::with_capacity(input.len() * 102 / 100);
+    let mut v = Vec::<u8>::with_capacity(input.len() * 104 / 100);
     input.iter().for_each(|&b| {
-        let (encoded, encoded_len) = encode_byte(b);
+        let encoded = encode_byte(b);
         v.push(encoded.0);
-        if encoded_len > 1 {
-            v.push(encoded.1);
-        }
-        col += encoded_len as u8;
+        col += match encoded.0 {
+            ESCAPE => {
+                v.push(encoded.1);
+                2
+            }
+            DOT if col == 0 => {
+                v.push(DOT);
+                2
+            }
+            _ => 1,
+        };
         if col >= line_length {
             v.push(CR);
             v.push(LF);
@@ -210,22 +217,20 @@ where
 }
 
 #[inline(always)]
-fn encode_byte(input_byte: u8) -> ((u8, u8), usize) {
+fn encode_byte(input_byte: u8) -> (u8, u8) {
     let mut output = (0, 0);
 
     let output_byte = input_byte.overflowing_add(42).0;
-    let len = match output_byte {
+    match output_byte {
         NUL | CR | LF | ESCAPE => {
             output.0 = ESCAPE;
             output.1 = output_byte.overflowing_add(64).0;
-            2
         }
         _ => {
             output.0 = output_byte;
-            1
         }
     };
-    (output, len)
+    output
 }
 
 #[cfg(test)]
@@ -235,7 +240,7 @@ mod tests {
 
     #[test]
     fn escape_null() {
-        assert_eq!(((ESCAPE, 0x40), 2), encode_byte(214));
+        assert_eq!((ESCAPE, 0x40), encode_byte(214));
     }
 
     /*
@@ -249,12 +254,12 @@ mod tests {
 
     #[test]
     fn escape_lf() {
-        assert_eq!(((ESCAPE, 0x4A), 2), encode_byte(214 + LF));
+        assert_eq!((ESCAPE, 0x4A), encode_byte(214 + LF));
     }
 
     #[test]
     fn escape_cr() {
-        assert_eq!(((ESCAPE, 0x4D), 2), encode_byte(214 + CR));
+        assert_eq!((ESCAPE, 0x4D), encode_byte(214 + CR));
     }
 
     /*    
@@ -268,7 +273,7 @@ mod tests {
 
     #[test]
     fn escape_equal_sign() {
-        assert_eq!(((ESCAPE, 0x7D), 2), encode_byte(ESCAPE - 42));
+        assert_eq!((ESCAPE, 0x7D), encode_byte(ESCAPE - 42));
     }
 
     #[test]
@@ -276,7 +281,7 @@ mod tests {
         for x in 0..256u16 {
             let encoded = (x as u8).overflowing_add(42).0;
             if encoded != NUL && encoded != CR && encoded != LF && encoded != ESCAPE {
-                assert_eq!(((encoded, 0), 1), encode_byte(x as u8));
+                assert_eq!((encoded, 0), encode_byte(x as u8));
             }
         }
     }
