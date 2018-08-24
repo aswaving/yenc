@@ -1,11 +1,19 @@
 extern crate rand;
 extern crate yenc;
 
+#[macro_use]
+extern crate lazy_static;
+
 use rand::random;
 use std::env::temp_dir;
-use std::fs::{create_dir, remove_file, File};
-use std::io::{Read, Write};
+use std::fs::{create_dir, remove_dir, remove_file, File};
+use std::io::{Read, Result, Write};
 use std::path::Path;
+use std::sync::Mutex;
+
+lazy_static! {
+    static ref M: Mutex<u8> = Mutex::new(0);
+}
 
 fn encode(input_filename: &str) {
     let parts = 1;
@@ -68,19 +76,23 @@ fn decode(input_filename: &str, output_directory: &str) -> u32 {
     }
 }
 
-fn encode_decode_are_equal(data: &[u8], filename: &str) -> bool {
+fn encode_decode_are_equal(data: &[u8], filename: &str) -> Result<bool> {
+    // synchronize, to prevent test cases run in parallel and mess up directories
+    let _x = M.lock().unwrap();
+
     // create temp dir
     let tmpdir = temp_dir();
     println!("{}", tmpdir.display());
+
     // created 'decoded' dir in temp dir
     let mut decoded_dir = tmpdir.clone();
     decoded_dir.push("decoded");
-    let _ = create_dir(decoded_dir.clone());
+    create_dir(decoded_dir.clone())?;
 
     // dump data to file
     let mut filepath = tmpdir.clone();
     filepath.push(filename);
-    let mut f = File::create(&filepath).unwrap();
+    let mut f = File::create(&filepath)?;
     f.write(data).unwrap();
 
     // encode file
@@ -88,8 +100,6 @@ fn encode_decode_are_equal(data: &[u8], filename: &str) -> bool {
 
     let mut decoded_file = decoded_dir.clone();
     decoded_file.push(filename);
-
-    remove_file(&decoded_file).unwrap();
 
     // decode file
     decode(
@@ -100,7 +110,14 @@ fn encode_decode_are_equal(data: &[u8], filename: &str) -> bool {
     // check that files are identical
     let mut decoded_file = decoded_dir.clone();
     decoded_file.push(filename);
-    identical(filepath, decoded_file)
+    let result = identical(filepath.clone(), decoded_file.clone());
+
+    //clean up
+    remove_file(filepath)?;
+    remove_file(decoded_file)?;
+    remove_dir(decoded_dir)?;
+
+    Ok(result)
 }
 
 fn identical<P: AsRef<Path>>(file1: P, file2: P) -> bool {
@@ -117,7 +134,7 @@ fn test_ascii() {
         .map(|c| (c & 0x7f) as u8)
         .collect::<Vec<u8>>();
 
-    assert!(encode_decode_are_equal(&data, "ascii"));
+    assert!(encode_decode_are_equal(&data, "ascii").unwrap());
 }
 
 #[test]
@@ -126,12 +143,12 @@ fn test_binary() {
         .map(|c| (c & 0xff) as u8)
         .collect::<Vec<u8>>();
 
-    assert!(encode_decode_are_equal(&data, "binary"));
+    assert!(encode_decode_are_equal(&data, "binary").unwrap());
 }
 
 #[test]
 fn test_random() {
     let data = (0..10_000_000).map(|_| random::<u8>()).collect::<Vec<u8>>();
 
-    assert!(encode_decode_are_equal(&data, "random"));
+    assert!(encode_decode_are_equal(&data, "random").unwrap());
 }
