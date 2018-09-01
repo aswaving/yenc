@@ -12,7 +12,9 @@ struct MetaData {
     line_length: Option<u16>,
     size: Option<usize>,
     crc32: Option<u32>,
+    pcrc32: Option<u32>,
     part: Option<u32>,
+    total: Option<u32>,
     begin: Option<usize>,
     end: Option<usize>,
 }
@@ -59,7 +61,9 @@ where
             yenc_block_found = true;
             // parse header line and determine output filename
             metadata = parse_header_line(&line_buf, 8)?;
-            output_pathbuf.push(metadata.name.unwrap().to_string().trim());
+            if let Some(ref name) = metadata.name {
+                output_pathbuf.push(name.trim());
+            }
         }
     }
 
@@ -78,7 +82,6 @@ where
             }
             if line_buf.starts_with(b"=ypart ") {
                 let part_metadata = parse_header_line(&line_buf, 7)?;
-                metadata.part = part_metadata.part;
                 metadata.begin = part_metadata.begin;
                 metadata.end = part_metadata.end;
                 if let Some(begin) = metadata.begin {
@@ -89,6 +92,7 @@ where
                 let mm = parse_header_line(&line_buf, 6)?;
                 metadata.size = mm.size;
                 metadata.crc32 = mm.crc32;
+                metadata.pcrc32 = mm.pcrc32;
             } else {
                 let decoded = decode_buffer(&line_buf[0..length])?;
                 checksum.update_with_slice(decoded.as_slice());
@@ -96,20 +100,17 @@ where
             }
         }
         if footer_found {
-            if let Some(expected_size) = metadata.size {
-                if expected_size != checksum.num_bytes {
-                    return Err(DecodeError::IncompleteData {
-                        expected_size,
-                        actual_size: checksum.num_bytes,
-                    });
+            if let Some(expected_part_crc) = metadata.pcrc32 {
+                if expected_part_crc != checksum.crc {
+                    return Err(DecodeError::InvalidChecksum);
                 }
-            }
-            if let Some(expected_crc) = metadata.crc32 {
+            } else if let Some(expected_crc) = metadata.crc32 {
                 if expected_crc != checksum.crc {
                     return Err(DecodeError::InvalidChecksum);
                 }
             }
-        } else if let Some(expected_size) = metadata.size {
+        }
+        if let Some(expected_size) = metadata.size {
             if expected_size != checksum.num_bytes {
                 return Err(DecodeError::IncompleteData {
                     expected_size,
@@ -310,7 +311,7 @@ fn parse_header_line(line_buf: &[u8], offset: usize) -> Result<MetaData, DecodeE
                         });
                     }
                 },
-                b"part" => match c {
+                b"part" | b"total" => match c {
                     b'0'...b'9' => {
                         if value_start_idx.is_none() {
                             value_start_idx = Some(position);
@@ -318,8 +319,13 @@ fn parse_header_line(line_buf: &[u8], offset: usize) -> Result<MetaData, DecodeE
                         value = &line_buf[value_start_idx.unwrap()..position + 1];
                     }
                     SPACE => {
-                        metadata.part =
+                        let number =
                             Some(u32::from_str_radix(&String::from_utf8_lossy(value), 10).unwrap());
+                        if keyword == b"part" {
+                            metadata.part = number;
+                        } else {
+                            metadata.total = number;
+                        }
                         state = State::Keyword;
                         keyword_start_idx = None;
                         value_start_idx = None;
@@ -338,16 +344,20 @@ fn parse_header_line(line_buf: &[u8], offset: usize) -> Result<MetaData, DecodeE
                         }
                         value = &line_buf[value_start_idx.unwrap()..position + 1];
                     }
-                    SPACE => {
-                        state = State::Keyword;
-                        metadata.crc32 =
+                    SPACE | LF => {
+                        state = if c == SPACE {
+                            State::Keyword
+                        } else {
+                            State::End
+                        };
+                        let crc =
                             Some(u32::from_str_radix(&String::from_utf8_lossy(value), 16).unwrap());
-                        value_start_idx = None;
-                    }
-                    LF => {
-                        state = State::End;
-                        metadata.crc32 =
-                            Some(u32::from_str_radix(&String::from_utf8_lossy(value), 16).unwrap());
+                        if keyword == b"crc32" {
+                            metadata.crc32 = crc;
+                        } else {
+                            metadata.pcrc32 = crc;
+                        }
+                        keyword_start_idx = None;
                         value_start_idx = None;
                     }
                     CR => {}
@@ -367,7 +377,8 @@ fn parse_header_line(line_buf: &[u8], offset: usize) -> Result<MetaData, DecodeE
 
 fn is_known_keyword(keyword_slice: &[u8]) -> bool {
     match keyword_slice {
-        b"begin" | b"crc32" | b"end" | b"line" | b"name" | b"part" | b"pcrc32" | b"size" => true,
+        b"begin" | b"crc32" | b"end" | b"line" | b"name" | b"part" | b"pcrc32" | b"size"
+        | b"total" => true,
         _ => false,
     }
 }
@@ -381,9 +392,24 @@ mod tests {
         let parse_result = parse_header_line(b"=yend size=26624 part=1 pcrc32=ae052b48\n", 6);
         assert!(parse_result.is_ok());
         let metadata = parse_result.unwrap();
-        assert_eq!(metadata.part, Some(1));
-        assert_eq!(metadata.size, Some(26624));
-        assert_eq!(metadata.crc32, Some(0xae052b48));
+        assert_eq!(Some(1), metadata.part);
+        assert_eq!(Some(26624), metadata.size);
+        assert_eq!(Some(0xae052b48), metadata.pcrc32);
+        assert!(metadata.crc32.is_none());
+    }
+
+    #[test]
+    fn parse_valid_footer_end_crlf() {
+        let parse_result = parse_header_line(
+            b"=yend size=26624 part=1 pcrc32=ae052b48 crc32=ff00ff00\r\n",
+            6,
+        );
+        assert!(parse_result.is_ok());
+        let metadata = parse_result.unwrap();
+        assert_eq!(Some(1), metadata.part);
+        assert_eq!(Some(26624), metadata.size);
+        assert_eq!(Some(0xae052b48), metadata.pcrc32);
+        assert_eq!(Some(0xff00ff00), metadata.crc32);
     }
 
     #[test]
@@ -391,9 +417,9 @@ mod tests {
         let parse_result = parse_header_line(b"=yend size=26624 part=1 pcrc32=ae052b48\n", 6);
         assert!(parse_result.is_ok());
         let metadata = parse_result.unwrap();
-        assert_eq!(metadata.part, Some(1));
-        assert_eq!(metadata.size, Some(26624));
-        assert_eq!(metadata.crc32, Some(0xae052b48));
+        assert_eq!(Some(1), metadata.part);
+        assert_eq!(Some(26624), metadata.size);
+        assert_eq!(Some(0xae052b48), metadata.pcrc32);
     }
 
     #[test]
@@ -408,8 +434,8 @@ mod tests {
         assert_eq!(metadata.size, Some(189463));
         assert_eq!(metadata.line_length, Some(128));
         assert_eq!(
+            Some("CatOnKeyboardInSpace001.jpg".to_string()),
             metadata.name,
-            Some("CatOnKeyboardInSpace001.jpg".to_string())
         );
     }
 
@@ -425,6 +451,18 @@ mod tests {
     #[test]
     fn invalid_header_unknown_keyword() {
         let parse_result = parse_header_line(b"=yparts begin=1 end=189463\n", 7);
+        assert!(parse_result.is_err());
+    }
+
+    #[test]
+    fn invalid_header_invalid_begin() {
+        let parse_result = parse_header_line(b"=yparts begin=a end=189463\n", 7);
+        assert!(parse_result.is_err());
+    }
+
+    #[test]
+    fn invalid_header_invalid_end() {
+        let parse_result = parse_header_line(b"=yparts begin=1 end=18_9463\n", 7);
         assert!(parse_result.is_err());
     }
 
@@ -467,10 +505,7 @@ mod tests {
 
     #[test]
     fn decode_valid_prepended_dots() {
-        assert_eq!(
-            &vec![b'.' - 0x2A],
-            &decode_buffer(b"..").unwrap()
-        );
+        assert_eq!(&vec![b'.' - 0x2A], &decode_buffer(b"..").unwrap());
     }
 
     #[test]
