@@ -8,8 +8,8 @@
 [![Downloads of latest version](https://img.shields.io/crates/dv/yenc.svg)](https://crates.io/crates/yenc)
 # yenc
 
-Encodes bytes into yEnc text and decodes yEnc encoded text back to bytes.
-Requires compiler version >= v1.25.0.
+Encodes binaries into yEnc text and decodes yEnc encoded text back to binaries.
+Requires compiler version v1.25.0 or higher.
 
 See [documentation](http://docs.rs/yenc).
 For more information on yEnc see [Wikipedia](https://en.wikipedia.org/wiki/YEnc) and [yenc.org](http://www.yenc.org).
