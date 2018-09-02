@@ -1,12 +1,15 @@
 use constants::{CR, DEFAULT_LINE_SIZE, DOT, ESCAPE, LF, NUL};
 use crc32;
 
+use errors::EncodeError;
 use std::fs::File;
 use std::io;
 use std::io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 use std::path::Path;
 
-/// Options for encoding
+/// Options for encoding.
+/// The entry point for encoding a file (part)
+/// to a file or (TCP) stream.
 #[derive(Debug)]
 pub struct EncodeOptions {
     line_length: u8,
@@ -44,7 +47,7 @@ impl EncodeOptions {
     }
 
     /// Sets the number of parts (default=1).
-    /// When the number of parts equals 1, no '=ypart' line will be written
+    /// When the number of parts is 1, no '=ypart' line will be written
     /// in the ouput.
     pub fn parts(mut self, parts: u32) -> EncodeOptions {
         self.parts = parts;
@@ -75,116 +78,127 @@ impl EncodeOptions {
         self.end = end;
         self
     }
-}
 
-/// Encodes the input file in a new output file.
-/// # Example
-/// ```rust,no_run
-/// let encode_options = yenc::EncodeOptions::default().parts(1);
-/// let mut output_file = std::fs::File::create("test1.bin.yenc").unwrap();
-/// yenc::encode_file("test1.bin", &encode_options, &mut output_file);
-/// ```
-/// # Errors
-/// - when the output file already exists
-///
-pub fn encode_file<P, W>(
-    input_path: P,
-    encode_options: &EncodeOptions,
-    output: W,
-) -> Result<(), io::Error>
-where
-    P: AsRef<Path>,
-    W: Write,
-{
-    let input_filename = input_path.as_ref().file_name();
-    let input_filename = match input_filename {
-        Some(s) => s.to_str().unwrap_or(""),
-        None => "",
-    };
-    let input_file = File::open(&input_path)?;
-    let length = input_file.metadata()?.len();
+    /// Encodes the input file and writes it to the writer. For multi-part encoding, only
+    /// one part is encoded. In case of multipart, the part number, begin and end offset need
+    /// to be specified in the `EncodeOptions`. When directly encoding to an NNTP stream, the
+    /// caller needs to take care of the message header and end of multi-line block (`".\r\n"`).
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// let encode_options = yenc::EncodeOptions::default().parts(1);
+    /// let mut output_file = std::fs::File::create("test1.bin.yenc").unwrap();
+    /// encode_options.encode_file("test1.bin", &mut output_file);
+    /// ```
+    /// # Errors
+    /// - when the output file already exists
+    ///
+    pub fn encode_file<P, W>(&self, input_path: P, output: W) -> Result<(), EncodeError>
+    where
+        P: AsRef<Path>,
+        W: Write,
+    {
+        let input_filename = input_path.as_ref().file_name();
+        let input_filename = match input_filename {
+            Some(s) => s.to_str().unwrap_or(""),
+            None => "",
+        };
+        let input_file = File::open(&input_path)?;
+        let length = input_file.metadata()?.len();
 
-    encode_stream(input_file, output, length, input_filename, encode_options)
-}
-
-pub fn encode_stream<R, W>(
-    input: R,
-    output: W,
-    length: u64,
-    input_filename: &str,
-    encode_options: &EncodeOptions,
-) -> io::Result<()>
-where
-    R: Read + Seek,
-    W: Write,
-{
-    let mut rdr = BufReader::new(input);
-    let mut checksum = crc32::Crc32::new();
-    let mut buffer = [0u8; 8192];
-    let mut col = 0;
-    let mut output = BufWriter::new(output);
-
-    if encode_options.parts == 1 {
-        write!(
-            output,
-            "=ybegin line={} size={} name={}\r\n",
-            encode_options.line_length, length, input_filename
-        )?;
-    } else {
-        write!(
-            output,
-            "=ybegin part={} line={} size={} name={}\r\n",
-            encode_options.part, encode_options.line_length, length, input_filename
-        )?;
+        self.encode_stream(input_file, output, length, input_filename)
     }
 
-    if encode_options.parts > 1 {
-        write!(
-            output,
-            "=ypart begin={} end={}\r\n",
-            encode_options.begin, encode_options.end
-        )?;
+    pub fn check_options(&self) -> Result<(), EncodeError> {
+        if self.parts > 1 && self.part == 0 {
+            return Err(EncodeError::PartNumberMissing);
+        }
+        if self.parts > 1 && self.begin == 0 {
+            return Err(EncodeError::PartBeginOffsetMissing);
+        }
+        if self.parts > 1 && self.end == 0 {
+            return Err(EncodeError::PartEndOffsetMissing);
+        }
+        Ok(())
     }
 
-    rdr.seek(SeekFrom::Start(encode_options.begin - 1))?;
+    pub fn encode_stream<R, W>(
+        &self,
+        input: R,
+        output: W,
+        length: u64,
+        input_filename: &str,
+    ) -> Result<(), EncodeError>
+    where
+        R: Read + Seek,
+        W: Write,
+    {
+        let mut rdr = BufReader::new(input);
+        let mut checksum = crc32::Crc32::new();
+        let mut buffer = [0u8; 8192];
+        let mut col = 0;
+        let mut output = BufWriter::new(output);
 
-    let mut remainder = (encode_options.end - encode_options.begin + 1) as usize;
-    while remainder > 0 {
-        let buf_slice = if remainder > buffer.len() {
-            &mut buffer[..]
+        self.check_options()?;
+
+        if self.parts == 1 {
+            write!(
+                output,
+                "=ybegin line={} size={} name={}\r\n",
+                self.line_length, length, input_filename
+            )?;
         } else {
-            &mut buffer[0..remainder]
-        };
-        rdr.read_exact(buf_slice)?;
-        checksum.update_with_slice(buf_slice);
-        match encode_buffer(buf_slice, col, encode_options.line_length, &mut output) {
-            Ok(c) => col = c,
-            Err(e) => return Err(e),
-        };
-        remainder -= buf_slice.len();
-    }
+            write!(
+                output,
+                "=ybegin part={} line={} size={} name={}\r\n",
+                self.part, self.line_length, length, input_filename
+            )?;
+        }
 
-    if encode_options.parts > 1 {
-        write!(
-            output,
-            "\r\n=yend size={} part={} pcrc32={:08x}\r\n",
-            checksum.num_bytes, encode_options.part, checksum.crc
-        )?;
-    } else {
-        write!(
-            output,
-            "\r\n=yend size={} crc32={:08x}\r\n",
-            checksum.num_bytes, checksum.crc
-        )?;
+        if self.parts > 1 {
+            write!(output, "=ypart begin={} end={}\r\n", self.begin, self.end)?;
+        }
+
+        rdr.seek(SeekFrom::Start(self.begin - 1))?;
+
+        let mut remainder = (self.end - self.begin + 1) as usize;
+        while remainder > 0 {
+            let buf_slice = if remainder > buffer.len() {
+                &mut buffer[..]
+            } else {
+                &mut buffer[0..remainder]
+            };
+            rdr.read_exact(buf_slice)?;
+            checksum.update_with_slice(buf_slice);
+            match encode_buffer(buf_slice, col, self.line_length, &mut output) {
+                Ok(c) => col = c,
+                Err(e) => return Err(EncodeError::IoError(e)),
+            };
+            remainder -= buf_slice.len();
+        }
+
+        if self.parts > 1 {
+            write!(
+                output,
+                "\r\n=yend size={} part={} pcrc32={:08x}\r\n",
+                checksum.num_bytes, self.part, checksum.crc
+            )?;
+        } else {
+            write!(
+                output,
+                "\r\n=yend size={} crc32={:08x}\r\n",
+                checksum.num_bytes, checksum.crc
+            )?;
+        }
+        Ok(())
     }
-    Ok(())
 }
 
-/// Encode the byte slice into a vector of yEncoded bytes.
+/// Encodes the input buffer and writes it to the writer.
 ///
 /// Lines are wrapped with a maximum of `line_length` characters per line.
-/// Does not include the header and footer lines. These are only produced
-/// by `encode_stream` and `encode_file`.
+/// Does not include the header and footer lines.
+/// Only `encode_stream` and `encode_file` produce the headers in the output.
 pub fn encode_buffer<W>(input: &[u8], col: u8, line_length: u8, writer: W) -> io::Result<u8>
 where
     W: Write,

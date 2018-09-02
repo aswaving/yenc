@@ -10,17 +10,11 @@ fn encode() {
     let expected_encoded = include_bytes!("../testdata/yenc.org/testfile.txt.yenc");
 
     let mut encoded = Vec::<u8>::new();
-    let options = yenc::EncodeOptions::new()
-        .begin(1)
-        .end(data.len() as u64);
+    let encode_options = yenc::EncodeOptions::new().begin(1).end(data.len() as u64);
     let mut c = std::io::Cursor::new(&data[..]);
-    yenc::encode_stream(
-        &mut c,
-        &mut encoded,
-        data.len() as u64,
-        "testfile.txt",
-        &options,
-    ).unwrap();
+    encode_options
+        .encode_stream(&mut c, &mut encoded, data.len() as u64, "testfile.txt")
+        .unwrap();
 
     assert_eq!(encoded.as_slice(), &expected_encoded[..]);
 }
@@ -33,9 +27,9 @@ fn decode() {
     let mut c = std::io::Cursor::new(&data[..]);
     let tmpdir = temp_dir();
     let mut tmpfile = tmpdir.clone();
-    let tmpdir_str = tmpdir.to_string_lossy();
     tmpfile.push("testfile.txt");
-    yenc::decode_stream(&mut c, &tmpdir_str).unwrap();
+    let decode_options = yenc::DecodeOptions::new(tmpdir);
+    decode_options.decode_stream(&mut c).unwrap();
     File::open(&tmpfile)
         .unwrap()
         .read_to_end(&mut decoded)

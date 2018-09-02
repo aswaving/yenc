@@ -1,10 +1,16 @@
 use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom, Write};
-use std::path::PathBuf;
+use std::path::Path;
 
 use constants::{CR, DEFAULT_LINE_SIZE, DOT, ESCAPE, LF, NUL, SPACE};
 use crc32;
 use errors::DecodeError;
+
+/// Options for decoding.
+/// The entry point for decoding from a file or (TCP) stream to an output directory.
+pub struct DecodeOptions<P> {
+    output_dir: P,
+}
 
 #[derive(Default, Debug)]
 struct MetaData {
@@ -19,107 +25,116 @@ struct MetaData {
     end: Option<usize>,
 }
 
-/// Decodes the input file in a new output file.
-///
-/// If ok, returns the path of the decoded file.
-///
-/// # Example
-/// ```rust,no_run
-/// yenc::decode_file("test2.bin.yenc", "test2.bin");
-/// ```
-/// # Errors
-/// - when the output file already exists
-///
-pub fn decode_file(input_filename: &str, output_path: &str) -> Result<String, DecodeError> {
-    let mut input_file = OpenOptions::new().read(true).open(input_filename)?;
-    decode_stream(&mut input_file, output_path)
-}
-
-/// Decodes the data from a stream in a new output file.
-///
-/// Writes the output to a file with the filename from the header line, and places it in the
-/// output path. The path of the output file is returned.
-pub fn decode_stream<R>(read_stream: R, output_path: &str) -> Result<String, DecodeError>
+impl<P> DecodeOptions<P>
 where
-    R: Read,
+    P: AsRef<Path>,
 {
-    let mut rdr = BufReader::new(read_stream);
-    let mut output_pathbuf = PathBuf::new();
-    output_pathbuf.push(output_path);
-
-    let mut checksum = crc32::Crc32::new();
-    let mut yenc_block_found = false;
-    let mut metadata: MetaData = Default::default();
-
-    while !yenc_block_found {
-        let mut line_buf = Vec::<u8>::with_capacity(2 * DEFAULT_LINE_SIZE as usize);
-        let length = rdr.read_until(LF, &mut line_buf)?;
-        if length == 0 {
-            break;
-        }
-        if line_buf.starts_with(b"=ybegin ") {
-            yenc_block_found = true;
-            // parse header line and determine output filename
-            metadata = parse_header_line(&line_buf, 8)?;
-            if let Some(ref name) = metadata.name {
-                output_pathbuf.push(name.trim());
-            }
-        }
+    pub fn new(output_dir: P) -> DecodeOptions<P> {
+        DecodeOptions { output_dir }
+    }
+    /// Decodes the input file in a new output file.
+    ///
+    /// If ok, returns the path of the decoded file.
+    ///
+    /// # Example
+    /// ```rust,no_run
+    /// let decode_options = yenc::DecodeOptions::new("/tmp/decoded");
+    /// decode_options.decode_file("test2.bin.yenc");
+    /// ```
+    /// # Errors
+    /// - when the output file already exists
+    /// - when I/O error occurs
+    ///
+    pub fn decode_file(&self, input_filename: &str) -> Result<String, DecodeError> {
+        let mut input_file = OpenOptions::new().read(true).open(input_filename)?;
+        self.decode_stream(&mut input_file)
     }
 
-    if yenc_block_found {
-        let mut output_file = OpenOptions::new()
-            .create(true)
-            .write(true)
-            .open(output_pathbuf.as_path())?;
+    /// Decodes the data from a stream to the specified directory.
+    ///
+    /// Writes the output to a file with the filename from the header line, and places it in the
+    /// output path. The path of the output file is returned as String.
+    pub fn decode_stream<R>(&self, read_stream: R) -> Result<String, DecodeError>
+    where
+        R: Read,
+    {
+        let mut rdr = BufReader::new(read_stream);
+        let mut output_pathbuf = self.output_dir.as_ref().to_path_buf();
 
-        let mut footer_found = false;
-        while !footer_found {
+        let mut checksum = crc32::Crc32::new();
+        let mut yenc_block_found = false;
+        let mut metadata: MetaData = Default::default();
+
+        while !yenc_block_found {
             let mut line_buf = Vec::<u8>::with_capacity(2 * DEFAULT_LINE_SIZE as usize);
             let length = rdr.read_until(LF, &mut line_buf)?;
             if length == 0 {
                 break;
             }
-            if line_buf.starts_with(b"=ypart ") {
-                let part_metadata = parse_header_line(&line_buf, 7)?;
-                metadata.begin = part_metadata.begin;
-                metadata.end = part_metadata.end;
-                if let Some(begin) = metadata.begin {
-                    output_file.seek(SeekFrom::Start((begin - 1) as u64))?;
-                }
-            } else if line_buf.starts_with(b"=yend ") {
-                footer_found = true;
-                let mm = parse_header_line(&line_buf, 6)?;
-                metadata.size = mm.size;
-                metadata.crc32 = mm.crc32;
-                metadata.pcrc32 = mm.pcrc32;
-            } else {
-                let decoded = decode_buffer(&line_buf[0..length])?;
-                checksum.update_with_slice(decoded.as_slice());
-                output_file.write_all(decoded.as_slice())?;
-            }
-        }
-        if footer_found {
-            if let Some(expected_part_crc) = metadata.pcrc32 {
-                if expected_part_crc != checksum.crc {
-                    return Err(DecodeError::InvalidChecksum);
-                }
-            } else if let Some(expected_crc) = metadata.crc32 {
-                if expected_crc != checksum.crc {
-                    return Err(DecodeError::InvalidChecksum);
+            if line_buf.starts_with(b"=ybegin ") {
+                yenc_block_found = true;
+                // parse header line and determine output filename
+                metadata = parse_header_line(&line_buf)?;
+                if let Some(ref name) = metadata.name {
+                    output_pathbuf.push(name.trim());
                 }
             }
         }
-        if let Some(expected_size) = metadata.size {
-            if expected_size != checksum.num_bytes {
-                return Err(DecodeError::IncompleteData {
-                    expected_size,
-                    actual_size: checksum.num_bytes,
-                });
+
+        if yenc_block_found {
+            let mut output_file = OpenOptions::new()
+                .create(true)
+                .write(true)
+                .open(output_pathbuf.as_path())?;
+
+            let mut footer_found = false;
+            while !footer_found {
+                let mut line_buf = Vec::<u8>::with_capacity(2 * DEFAULT_LINE_SIZE as usize);
+                let length = rdr.read_until(LF, &mut line_buf)?;
+                if length == 0 {
+                    break;
+                }
+                if line_buf.starts_with(b"=ypart ") {
+                    let part_metadata = parse_header_line(&line_buf)?;
+                    metadata.begin = part_metadata.begin;
+                    metadata.end = part_metadata.end;
+                    if let Some(begin) = metadata.begin {
+                        output_file.seek(SeekFrom::Start((begin - 1) as u64))?;
+                    }
+                } else if line_buf.starts_with(b"=yend ") {
+                    footer_found = true;
+                    let mm = parse_header_line(&line_buf)?;
+                    metadata.size = mm.size;
+                    metadata.crc32 = mm.crc32;
+                    metadata.pcrc32 = mm.pcrc32;
+                } else {
+                    let decoded = decode_buffer(&line_buf[0..length])?;
+                    checksum.update_with_slice(decoded.as_slice());
+                    output_file.write_all(decoded.as_slice())?;
+                }
+            }
+            if footer_found {
+                if let Some(expected_part_crc) = metadata.pcrc32 {
+                    if expected_part_crc != checksum.crc {
+                        return Err(DecodeError::InvalidChecksum);
+                    }
+                } else if let Some(expected_crc) = metadata.crc32 {
+                    if expected_crc != checksum.crc {
+                        return Err(DecodeError::InvalidChecksum);
+                    }
+                }
+            }
+            if let Some(expected_size) = metadata.size {
+                if expected_size != checksum.num_bytes {
+                    return Err(DecodeError::IncompleteData {
+                        expected_size,
+                        actual_size: checksum.num_bytes,
+                    });
+                }
             }
         }
+        Ok(output_pathbuf.to_str().unwrap().to_string())
     }
-    Ok(output_pathbuf.to_str().unwrap().to_string())
 }
 
 /// Decode the yEncoded byte slice into a vector of bytes.
@@ -165,13 +180,26 @@ pub fn decode_buffer(input: &[u8]) -> Result<Vec<u8>, DecodeError> {
     Ok(output)
 }
 
-fn parse_header_line(line_buf: &[u8], offset: usize) -> Result<MetaData, DecodeError> {
+fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
     #[derive(Debug)]
     enum State {
         Keyword,
         Value,
         End,
     };
+
+    let header_line = String::from_utf8_lossy(line_buf).to_string();
+    if !(header_line.starts_with("=ybegin ")
+        || header_line.starts_with("=yend ")
+        || header_line.starts_with("=ypart "))
+    {
+        return Err(DecodeError::InvalidHeader {
+            line: header_line,
+            position: 0,
+        });
+    }
+
+    let offset = line_buf.iter().position(|&c| c == b' ').unwrap() + 1;
 
     let mut metadata: MetaData = Default::default();
     let mut state = State::Keyword;
@@ -181,7 +209,6 @@ fn parse_header_line(line_buf: &[u8], offset: usize) -> Result<MetaData, DecodeE
     let mut value: &[u8] = &[];
     let mut value_start_idx: Option<usize> = None;
 
-    let header_line = String::from_utf8_lossy(line_buf).to_string();
     for (i, &c) in line_buf[offset..].iter().enumerate() {
         let position = i + offset;
         match state {
@@ -247,29 +274,7 @@ fn parse_header_line(line_buf: &[u8], offset: usize) -> Result<MetaData, DecodeE
                         });
                     }
                 },
-                b"begin" => match c {
-                    b'0'...b'9' => {
-                        if value_start_idx.is_none() {
-                            value_start_idx = Some(position);
-                        }
-                        value = &line_buf[value_start_idx.unwrap()..position + 1];
-                    }
-                    SPACE => {
-                        metadata.begin = Some(
-                            usize::from_str_radix(&String::from_utf8_lossy(value), 10).unwrap(),
-                        );
-                        state = State::Keyword;
-                        keyword_start_idx = None;
-                        value_start_idx = None;
-                    }
-                    _ => {
-                        return Err(DecodeError::InvalidHeader {
-                            line: header_line,
-                            position,
-                        });
-                    }
-                },
-                b"end" => match c {
+                b"begin" | b"end" => match c {
                     b'0'...b'9' => {
                         if value_start_idx.is_none() {
                             value_start_idx = Some(position);
@@ -277,10 +282,16 @@ fn parse_header_line(line_buf: &[u8], offset: usize) -> Result<MetaData, DecodeE
                         value = &line_buf[value_start_idx.unwrap()..position + 1];
                     }
                     SPACE | LF | CR => {
-                        metadata.end = Some(
+                        let nr = Some(
                             usize::from_str_radix(&String::from_utf8_lossy(value), 10).unwrap(),
                         );
+                        if keyword == b"begin" {
+                            metadata.begin = nr;
+                        } else {
+                            metadata.end = nr;
+                        }
                         state = State::Keyword;
+                        keyword_start_idx = None;
                         value_start_idx = None;
                     }
                     _ => {
@@ -389,7 +400,7 @@ mod tests {
 
     #[test]
     fn parse_valid_footer_end_nl() {
-        let parse_result = parse_header_line(b"=yend size=26624 part=1 pcrc32=ae052b48\n", 6);
+        let parse_result = parse_header_line(b"=yend size=26624 part=1 pcrc32=ae052b48\n");
         assert!(parse_result.is_ok());
         let metadata = parse_result.unwrap();
         assert_eq!(Some(1), metadata.part);
@@ -400,10 +411,8 @@ mod tests {
 
     #[test]
     fn parse_valid_footer_end_crlf() {
-        let parse_result = parse_header_line(
-            b"=yend size=26624 part=1 pcrc32=ae052b48 crc32=ff00ff00\r\n",
-            6,
-        );
+        let parse_result =
+            parse_header_line(b"=yend size=26624 part=1 pcrc32=ae052b48 crc32=ff00ff00\r\n");
         assert!(parse_result.is_ok());
         let metadata = parse_result.unwrap();
         assert_eq!(Some(1), metadata.part);
@@ -414,7 +423,7 @@ mod tests {
 
     #[test]
     fn parse_valid_footer_end_space() {
-        let parse_result = parse_header_line(b"=yend size=26624 part=1 pcrc32=ae052b48\n", 6);
+        let parse_result = parse_header_line(b"=yend size=26624 part=1 pcrc32=ae052b48 \n");
         assert!(parse_result.is_ok());
         let metadata = parse_result.unwrap();
         assert_eq!(Some(1), metadata.part);
@@ -426,7 +435,6 @@ mod tests {
     fn parse_valid_header_begin() {
         let parse_result = parse_header_line(
             b"=ybegin part=1 line=128 size=189463 name=CatOnKeyboardInSpace001.jpg\n",
-            8,
         );
         assert!(parse_result.is_ok());
         let metadata = parse_result.unwrap();
@@ -441,7 +449,7 @@ mod tests {
 
     #[test]
     fn parse_valid_header_part() {
-        let parse_result = parse_header_line(b"=ypart begin=1 end=189463\n", 7);
+        let parse_result = parse_header_line(b"=ypart begin=1 end=189463\n");
         assert!(parse_result.is_ok());
         let metadata = parse_result.unwrap();
         assert_eq!(metadata.begin, Some(1));
@@ -449,26 +457,32 @@ mod tests {
     }
 
     #[test]
+    fn invalid_header_tag() {
+        let parse_result = parse_header_line(b"=yparts begin=1 end=189463\n");
+        assert!(parse_result.is_err());
+    }
+
+    #[test]
     fn invalid_header_unknown_keyword() {
-        let parse_result = parse_header_line(b"=yparts begin=1 end=189463\n", 7);
+        let parse_result = parse_header_line(b"=ybegin parts=1 total=4 name=party.jpg\r\n");
         assert!(parse_result.is_err());
     }
 
     #[test]
     fn invalid_header_invalid_begin() {
-        let parse_result = parse_header_line(b"=yparts begin=a end=189463\n", 7);
+        let parse_result = parse_header_line(b"=ypart begin=a end=189463\n");
         assert!(parse_result.is_err());
     }
 
     #[test]
     fn invalid_header_invalid_end() {
-        let parse_result = parse_header_line(b"=yparts begin=1 end=18_9463\n", 7);
+        let parse_result = parse_header_line(b"=ypart begin=1 end=18_9463\n");
         assert!(parse_result.is_err());
     }
 
     #[test]
     fn invalid_header_empty_keyword() {
-        let parse_result = parse_header_line(b"=yparts =1 end=189463\n", 7);
+        let parse_result = parse_header_line(b"=ypart =1 end=189463\n");
         assert!(parse_result.is_err());
     }
 

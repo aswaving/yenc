@@ -1,13 +1,16 @@
 //! [yEnc](http://www.yenc.org) is an encoding scheme to include binary files in Usenet messages.
+//! 
+//! To encode a complete file to a single encoded 
 mod constants;
 mod crc32;
 mod decode;
 mod encode;
 mod errors;
 
-pub use decode::{decode_buffer, decode_file, decode_stream};
-pub use encode::{encode_buffer, encode_file, encode_stream, EncodeOptions};
-pub use errors::DecodeError;
+pub use decode::{decode_buffer, DecodeOptions};
+pub use encode::{encode_buffer, EncodeOptions};
+pub use errors::{DecodeError, EncodeError};
+
 
 #[cfg(test)]
 mod tests {

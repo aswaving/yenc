@@ -1,8 +1,8 @@
 // use std::error;
+use std::convert::From;
 use std::fmt;
 use std::io;
 use std::iter;
-use std::convert::From;
 
 /// Error enum for errors that can be encountered while decoding.
 #[derive(Debug)]
@@ -20,9 +20,28 @@ pub enum DecodeError {
     IoError(io::Error),
 }
 
+/// Error enum for errors that can be encountered while decoding.
+#[derive(Debug)]
+pub enum EncodeError {
+    /// Multiple parts (parts > 1), but no part number specified
+    PartNumberMissing,
+    /// Multiple parts (parts > 1), but no begin offset specified
+    PartBeginOffsetMissing,
+    /// Multiple parts (parts > 1), but no end offset specified
+    PartEndOffsetMissing,
+    /// I/O Error
+    IoError(io::Error),
+}
+
 impl From<io::Error> for DecodeError {
     fn from(error: io::Error) -> DecodeError {
         DecodeError::IoError(error)
+    }
+}
+
+impl From<io::Error> for EncodeError {
+    fn from(error: io::Error) -> EncodeError {
+        EncodeError::IoError(error)
     }
 }
 
@@ -44,9 +63,25 @@ impl fmt::Display for DecodeError {
                 iter::repeat(" ").take(position).collect::<String>()
             ),
             DecodeError::InvalidChecksum => write!(f, "Invalid checksum"),
-            DecodeError::IoError(ref err) => write!(f, "IO error {}", err),
+            DecodeError::IoError(ref err) => write!(f, "I/O error {}", err),
         }
     }
 }
 
+impl fmt::Display for EncodeError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            EncodeError::PartNumberMissing => {
+                write!(f, "Multiple parts, but no part number specified.")
+            }
+            EncodeError::PartBeginOffsetMissing => {
+                write!(f, "Multiple parts, but no begin offset specified.")
+            }
+            EncodeError::PartEndOffsetMissing => {
+                write!(f, "Multiple parts, but no end offset specified.")
+            }
+            EncodeError::IoError(ref err) => write!(f, "I/O error {}", err),
+        }
+    }
+}
 // impl error::Error for DecodeError {}

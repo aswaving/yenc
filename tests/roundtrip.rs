@@ -43,7 +43,7 @@ fn encode(input_filename: &str) {
             .begin(begin)
             .end(end);
 
-        match yenc::encode_file(path, &encode_options, &mut output_file) {
+        match encode_options.encode_file(path, &mut output_file) {
             Err(err) => {
                 println!(
                     "Error yEncoding {} to {}: {}",
@@ -61,7 +61,8 @@ fn encode(input_filename: &str) {
 }
 
 fn decode(input_filename: &str, output_directory: &str) -> u32 {
-    match yenc::decode_file(&input_filename, &output_directory) {
+    let decode_options = yenc::DecodeOptions::new(output_directory);
+    match decode_options.decode_file(&input_filename) {
         Err(err) => {
             println!("Error yEnc decoding {}: {}", input_filename, err);
             1
