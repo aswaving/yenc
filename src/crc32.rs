@@ -49,18 +49,12 @@ impl Crc32 {
 
     /// Update the CRC32 with the bytes from the slice.
     pub fn update_with_slice(&mut self, buf: &[u8]) {
-        for byte in buf {
-            self.update_with_byte(*byte);
-        }
-    }
-
-    /// Update the CRC32 with a single byte.
-    #[inline]
-    pub fn update_with_byte(&mut self, byte: u8) {
-        let mut value = !self.crc;
-        value = POLYNOMIALS[((value as u8) ^ byte) as usize] ^ (value >> 8);
-        self.crc = !value;
-        self.num_bytes += 1;
+        buf.iter().for_each(|&b| {
+            let mut value = !self.crc;
+            value = POLYNOMIALS[((value as u8) ^ b) as usize] ^ (value >> 8);
+            self.crc = !value;
+        });
+        self.num_bytes += buf.len();
     }
 }
 
