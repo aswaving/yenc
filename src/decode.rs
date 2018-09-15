@@ -8,6 +8,7 @@ use errors::DecodeError;
 
 /// Options for decoding.
 /// The entry point for decoding from a file or (TCP) stream to an output directory.
+#[derive(Debug)]
 pub struct DecodeOptions<P> {
     output_dir: P,
 }
@@ -29,6 +30,8 @@ impl<P> DecodeOptions<P>
 where
     P: AsRef<Path>,
 {
+    /// Construct new DecodeOptions using the specified path as output directory.
+    /// The output directory is 
     pub fn new(output_dir: P) -> DecodeOptions<P> {
         DecodeOptions { output_dir }
     }
@@ -137,7 +140,7 @@ where
     }
 }
 
-/// Decode the yEncoded byte slice into a vector of bytes.
+/// Decode the encoded byte slice into a vector of bytes.
 ///
 /// Carriage Return (CR) and Line Feed (LF) are ignored.
 pub fn decode_buffer(input: &[u8]) -> Result<Vec<u8>, DecodeError> {

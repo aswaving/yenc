@@ -9,18 +9,25 @@ use std::iter;
 pub enum DecodeError {
     /// Fewer or more bytes than expected.
     IncompleteData {
+        /// the expected size, as specified in the yenc header
         expected_size: usize,
+        /// the actual size, as found while reading
         actual_size: usize,
     },
     /// The header or footer line contains unexpected characters or is incomplete.
-    InvalidHeader { line: String, position: usize },
+    InvalidHeader {
+        /// the header line
+        line: String,
+        /// the position in the line where the parsing error occurred
+        position: usize,
+    },
     /// CRC32 checksum of the part is not the expected checksum.
     InvalidChecksum,
     /// An I/O error occurred.
     IoError(io::Error),
 }
 
-/// Error enum for errors that can be encountered while decoding.
+/// Error enum for errors that can be encountered when validating the encode options or while encoding.
 #[derive(Debug)]
 pub enum EncodeError {
     /// Multiple parts (parts > 1), but no part number specified
@@ -29,6 +36,8 @@ pub enum EncodeError {
     PartBeginOffsetMissing,
     /// Multiple parts (parts > 1), but no end offset specified
     PartEndOffsetMissing,
+    /// Multiple parts (parts > 1), and begin offset larger than end offset
+    PartOffsetsInvalidRange,
     /// I/O Error
     IoError(io::Error),
 }
@@ -79,6 +88,9 @@ impl fmt::Display for EncodeError {
             }
             EncodeError::PartEndOffsetMissing => {
                 write!(f, "Multiple parts, but no end offset specified.")
+            }
+            EncodeError::PartOffsetsInvalidRange => {
+                write!(f, "Multiple parts, begin offset larger than end offset")
             }
             EncodeError::IoError(ref err) => write!(f, "I/O error {}", err),
         }

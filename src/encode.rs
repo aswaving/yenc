@@ -3,7 +3,6 @@ use crc32;
 
 use errors::EncodeError;
 use std::fs::File;
-use std::io;
 use std::io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 use std::path::Path;
 
@@ -36,6 +35,7 @@ impl Default for EncodeOptions {
 }
 
 impl EncodeOptions {
+    /// Constructs a new EncodeOptions with defaults
     pub fn new() -> EncodeOptions {
         Default::default()
     }
@@ -86,8 +86,12 @@ impl EncodeOptions {
     ///
     /// # Example
     /// ```rust,no_run
-    /// let encode_options = yenc::EncodeOptions::default().parts(1);
-    /// let mut output_file = std::fs::File::create("test1.bin.yenc").unwrap();
+    /// let encode_options = yenc::EncodeOptions::default()
+    ///                                         .parts(2)
+    ///                                         .part(1)
+    ///                                         .begin(1)
+    ///                                         .end(38400);
+    /// let mut output_file = std::fs::File::create("test1.bin.yenc.001").unwrap();
     /// encode_options.encode_file("test1.bin", &mut output_file);
     /// ```
     /// # Errors
@@ -109,6 +113,12 @@ impl EncodeOptions {
         self.encode_stream(input_file, output, length, input_filename)
     }
 
+    /// Checks the options. Returns Ok(()) if all options are ok.
+    /// # Return
+    /// - EncodeError::PartNumberMissing
+    /// - EncodeError::PartBeginOffsetMissing
+    /// - EncodeError::PartEndOffsetMissing
+    /// - EncodeError::PartOffsetsInvalidRange
     pub fn check_options(&self) -> Result<(), EncodeError> {
         if self.parts > 1 && self.part == 0 {
             return Err(EncodeError::PartNumberMissing);
@@ -119,9 +129,15 @@ impl EncodeOptions {
         if self.parts > 1 && self.end == 0 {
             return Err(EncodeError::PartEndOffsetMissing);
         }
+        if self.parts > 1 && self.begin > self.end {
+            return Err(EncodeError::PartOffsetsInvalidRange);
+        }
         Ok(())
     }
 
+    /// Encodes the date from input from stream and writes the encoded data to the output stream.
+    /// The input stream does not need to be a file, therefore, size and input_filename
+    /// must be specified. The input_filename ends up as the filename in the yenc header.
     pub fn encode_stream<R, W>(
         &self,
         input: R,
@@ -170,10 +186,7 @@ impl EncodeOptions {
             };
             rdr.read_exact(buf_slice)?;
             checksum.update_with_slice(buf_slice);
-            match encode_buffer(buf_slice, col, self.line_length, &mut output) {
-                Ok(c) => col = c,
-                Err(e) => return Err(EncodeError::IoError(e)),
-            };
+            col = encode_buffer(buf_slice, col, self.line_length, &mut output)?;
             remainder -= buf_slice.len();
         }
 
@@ -199,7 +212,8 @@ impl EncodeOptions {
 /// Lines are wrapped with a maximum of `line_length` characters per line.
 /// Does not include the header and footer lines.
 /// Only `encode_stream` and `encode_file` produce the headers in the output.
-pub fn encode_buffer<W>(input: &[u8], col: u8, line_length: u8, writer: W) -> io::Result<u8>
+/// The `col` parameter is the starting offset in the row. The result contains the new offset.
+pub fn encode_buffer<W>(input: &[u8], col: u8, line_length: u8, writer: W) -> Result<u8, EncodeError>
 where
     W: Write,
 {
@@ -250,7 +264,7 @@ fn encode_byte(input_byte: u8) -> (u8, u8) {
 #[cfg(test)]
 mod tests {
     use super::super::constants::{CR, ESCAPE, LF, NUL};
-    use super::{encode_buffer, encode_byte};
+    use super::{encode_buffer, encode_byte, EncodeOptions};
 
     #[test]
     fn escape_null() {
@@ -324,5 +338,33 @@ mod tests {
         let result = encode_buffer(&buffer, 0, 128, &mut encoded);
         assert!(result.is_ok());
         assert_eq!(encoded.as_slice(), &EXPECTED[..]);
+    }
+
+    #[test]
+    fn encode_options_invalid_parts() {
+        let encode_options = EncodeOptions::new().parts(2).begin(1).end(38400);
+        let vr = encode_options.check_options();
+        assert!(vr.is_err());
+    }
+
+    #[test]
+    fn encode_options_invalid_begin() {
+        let encode_options = EncodeOptions::new().parts(2).part(1).end(38400);
+        let vr = encode_options.check_options();
+        assert!(vr.is_err());
+    }
+
+    #[test]
+    fn encode_options_invalid_end() {
+        let encode_options = EncodeOptions::new().parts(2).part(1).begin(1);
+        let vr = encode_options.check_options();
+        assert!(vr.is_err());
+    }
+
+    #[test]
+    fn encode_options_invalid_range() {
+        let encode_options = EncodeOptions::new().parts(2).part(1).begin(38400).begin(1);
+        let vr = encode_options.check_options();
+        assert!(vr.is_err());
     }
 }
