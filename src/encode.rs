@@ -213,7 +213,12 @@ impl EncodeOptions {
 /// Does not include the header and footer lines.
 /// Only `encode_stream` and `encode_file` produce the headers in the output.
 /// The `col` parameter is the starting offset in the row. The result contains the new offset.
-pub fn encode_buffer<W>(input: &[u8], col: u8, line_length: u8, writer: W) -> Result<u8, EncodeError>
+pub fn encode_buffer<W>(
+    input: &[u8],
+    col: u8,
+    line_length: u8,
+    writer: W,
+) -> Result<u8, EncodeError>
 where
     W: Write,
 {
@@ -363,7 +368,7 @@ mod tests {
 
     #[test]
     fn encode_options_invalid_range() {
-        let encode_options = EncodeOptions::new().parts(2).part(1).begin(38400).begin(1);
+        let encode_options = EncodeOptions::new().parts(2).part(1).begin(38400).end(1);
         let vr = encode_options.check_options();
         assert!(vr.is_err());
     }
