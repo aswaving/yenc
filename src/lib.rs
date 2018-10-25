@@ -33,9 +33,9 @@ mod decode;
 mod encode;
 mod errors;
 
-pub use decode::{decode_buffer, DecodeOptions};
-pub use encode::{encode_buffer, EncodeOptions};
-pub use errors::{DecodeError, EncodeError};
+pub use self::decode::{decode_buffer, DecodeOptions};
+pub use self::encode::{encode_buffer, EncodeOptions};
+pub use self::errors::{DecodeError, EncodeError};
 
 #[cfg(test)]
 mod tests {

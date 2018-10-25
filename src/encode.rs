@@ -1,7 +1,7 @@
-use constants::{CR, DEFAULT_LINE_SIZE, DOT, ESCAPE, LF, NUL};
-use crc32;
+use super::constants::{CR, DEFAULT_LINE_SIZE, DOT, ESCAPE, LF, NUL};
+use super::crc32;
+use super::errors::EncodeError;
 
-use errors::EncodeError;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 use std::path::Path;

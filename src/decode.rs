@@ -2,9 +2,9 @@ use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom, Write};
 use std::path::Path;
 
-use constants::{CR, DEFAULT_LINE_SIZE, DOT, ESCAPE, LF, NUL, SPACE};
-use crc32;
-use errors::DecodeError;
+use super::constants::{CR, DEFAULT_LINE_SIZE, DOT, ESCAPE, LF, NUL, SPACE};
+use super::crc32;
+use super::errors::DecodeError;
 
 /// Options for decoding.
 /// The entry point for decoding from a file or (TCP) stream to an output directory.
