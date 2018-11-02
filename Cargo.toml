@@ -1,6 +1,6 @@
 [package]
 name = "yenc"
-version = "0.1.1-alpha.0"
+version = "0.1.1"
 authors = ["aswaving <a.swaving@gmail.com>"]
 description = "Encodes and decodes using the yEnc encoding."
 repository = "https://github.com/aswaving/yenc"
