@@ -221,7 +221,7 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                     if keyword_start_idx.is_none() {
                         keyword_start_idx = Some(position);
                     }
-                    keyword = &line_buf[keyword_start_idx.unwrap()..position + 1];
+                    keyword = &line_buf[keyword_start_idx.unwrap()..=position];
                 }
                 b'=' => {
                     if keyword.is_empty() || !is_known_keyword(keyword) {
@@ -252,7 +252,7 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                         if value_start_idx.is_none() {
                             value_start_idx = Some(position);
                         }
-                        value = &line_buf[value_start_idx.unwrap()..position + 1];
+                        value = &line_buf[value_start_idx.unwrap()..=position];
                     }
                 },
                 b"size" => match c {
@@ -260,7 +260,7 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                         if value_start_idx.is_none() {
                             value_start_idx = Some(position);
                         }
-                        value = &line_buf[value_start_idx.unwrap()..position + 1];
+                        value = &line_buf[value_start_idx.unwrap()..=position];
                     }
                     SPACE => {
                         metadata.size = Some(
@@ -282,7 +282,7 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                         if value_start_idx.is_none() {
                             value_start_idx = Some(position);
                         }
-                        value = &line_buf[value_start_idx.unwrap()..position + 1];
+                        value = &line_buf[value_start_idx.unwrap()..=position];
                     }
                     SPACE | LF | CR => {
                         let nr = Some(
@@ -309,7 +309,7 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                         if value_start_idx.is_none() {
                             value_start_idx = Some(position);
                         }
-                        value = &line_buf[value_start_idx.unwrap()..position + 1];
+                        value = &line_buf[value_start_idx.unwrap()..=position];
                     }
                     SPACE => {
                         metadata.line_length =
@@ -330,7 +330,7 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                         if value_start_idx.is_none() {
                             value_start_idx = Some(position);
                         }
-                        value = &line_buf[value_start_idx.unwrap()..position + 1];
+                        value = &line_buf[value_start_idx.unwrap()..=position];
                     }
                     SPACE => {
                         let number =
@@ -356,7 +356,7 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                         if value_start_idx.is_none() {
                             value_start_idx = Some(position);
                         }
-                        value = &line_buf[value_start_idx.unwrap()..position + 1];
+                        value = &line_buf[value_start_idx.unwrap()..=position];
                     }
                     SPACE | LF => {
                         state = if c == SPACE {
