@@ -2,29 +2,22 @@
 extern crate criterion;
 
 extern crate yenc;
-
-use std::env::temp_dir;
-use std::io::Cursor;
-
-use criterion::Criterion;
+use criterion::*;
 
 fn decode(c: &mut Criterion) {
-    // write random data in file
-    let buf = (0..32_768).map(|c| (c % 256) as u8).collect::<Vec<u8>>();
-    let length = buf.len() as u64;
+    let mut buf = (0..32_768).map(|c| (c % 256) as u8).collect::<Vec<u8>>();
+    let length = buf.len();
+    let mut encoded = Vec::with_capacity(32_768 * 102 / 100);
+    yenc::encode_buffer(&buf, 0, 128, &mut encoded).unwrap();
 
-    let mut out = Vec::<u8>::with_capacity(32768 * 102 / 100);
-    let encode_options = yenc::EncodeOptions::default().begin(1).end(length);
-    let cur = Cursor::new(buf);
-    encode_options.encode_stream(cur, &mut out, length, "test").unwrap();
-
-    c.bench_function("decode 32k", move |b| {
-        let mut cur = Cursor::new(out.clone());
-        let output_dir = temp_dir();
-        let output_dir = output_dir.to_str().unwrap();
-        let decode_options = yenc::DecodeOptions::new(output_dir);
-        b.iter(|| decode_options.decode_stream(&mut cur).unwrap())
-    });
+    c.bench(
+        "decode",
+        Benchmark::new("decode 32k", move |b| {
+            buf.clear();
+            b.iter(|| yenc::decode_buffer(&encoded).unwrap())
+        })
+        .throughput(Throughput::Bytes(length as u32)),
+    );
 }
 
 criterion_group!(benches, decode);

@@ -2,16 +2,22 @@
 extern crate criterion;
 extern crate yenc;
 
-use criterion::Criterion;
+use criterion::*;
 
 fn encode_buffer(c: &mut Criterion) {
     let buf = (0..32_768).map(|c| (c % 256) as u8).collect::<Vec<u8>>();
-    c.bench_function("encode 32k", move |b| {
-        b.iter(|| {
-            let mut output = Vec::with_capacity(32_768 * 102 / 100);
-            yenc::encode_buffer(&buf, 0, 128, &mut output).unwrap()
+    let length = buf.len();
+                let mut output = Vec::with_capacity(32_768 * 102 / 100);
+    c.bench(
+        "encode",
+        Benchmark::new("encode 32k", move |b| {
+            b.iter(|| {
+                output.clear();
+                yenc::encode_buffer(&buf, 0, 128, &mut output).unwrap()
+            })
         })
-    });
+        .throughput(Throughput::Bytes(length as u32)),
+    );
 }
 
 criterion_group!(benches, encode_buffer);
