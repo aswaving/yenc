@@ -1,17 +1,13 @@
-extern crate rand;
-extern crate yenc;
-
-#[macro_use]
-extern crate lazy_static;
-
+use lazy_static;
 use rand::random;
 use std::env::temp_dir;
 use std::fs::{create_dir, remove_dir, remove_file, File};
 use std::io::{Read, Result, Write};
 use std::path::Path;
 use std::sync::Mutex;
+use yenc;
 
-lazy_static! {
+lazy_static::lazy_static! {
     static ref M: Mutex<u8> = Mutex::new(0);
 }
 

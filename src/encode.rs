@@ -138,6 +138,7 @@ impl EncodeOptions {
     /// Encodes the date from input from stream and writes the encoded data to the output stream.
     /// The input stream does not need to be a file, therefore, size and input_filename
     /// must be specified. The input_filename ends up as the filename in the yenc header.
+    #[allow(clippy::write_with_newline)]
     pub fn encode_stream<R, W>(
         &self,
         input: R,
@@ -295,7 +296,7 @@ mod tests {
         assert_eq!((ESCAPE, 0x4D), encode_byte(214 + CR));
     }
 
-    /*    
+    /*
     #[test]
     fn escape_space() {
         let mut output = [0u8; 2];
@@ -322,7 +323,7 @@ mod tests {
     #[test]
     fn test_encode_buffer() {
         let buffer = (0..256u16).map(|c| c as u8).collect::<Vec<u8>>();
-        #[cfg_attr(rustfmt, rustfmt_skip)]
+        #[rustfmt::skip]
         const EXPECTED: [u8; 264] =
                        [42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 
                        125, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 

@@ -9,6 +9,7 @@ categories = ["encoding"]
 keywords = ["yenc", "encode", "decode"]
 license = "MIT"
 autobenches = false
+edition = "2018"
 
 [dependencies]
 

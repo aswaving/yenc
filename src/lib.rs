@@ -1,8 +1,8 @@
 //! [yEnc](http://www.yenc.org) is an encoding scheme to include binary files in Usenet messages.
-//! 
+//!
 //! The `EncodeOptions` and `DecodeOptions` structs are the entry points for encoding and decoding.
-//! 
-//! To encode a complete file to a single encoded 
+//!
+//! To encode a complete file to a single encoded
 //! ```rust,no_run
 //! # extern crate yenc;
 //! let encode_options = yenc::EncodeOptions::new();
@@ -11,7 +11,7 @@
 //! ```
 //!
 //! To decode from a stream and place the targets files in the output directory
-//! 
+//!
 //! ```rust,no_run
 //! # extern crate yenc;
 //! # use std::io::{Read};
@@ -25,7 +25,7 @@
 //! // ...
 //! decode_options.decode_stream(message.as_slice()).unwrap();
 //! ```
-//! 
+//!
 #![forbid(unsafe_code, missing_docs, missing_debug_implementations)]
 mod constants;
 mod crc32;
@@ -50,8 +50,9 @@ mod tests {
                 let mut output = Vec::new();
                 encode_buffer(&b, 0, 128, &mut output).unwrap();
                 decode_buffer(&output)
-            }.unwrap()
-                .as_slice()
+            }
+            .unwrap()
+            .as_slice()
         );
     }
 }
