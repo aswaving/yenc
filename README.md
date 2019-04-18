@@ -1,7 +1,7 @@
 [![Build Status](https://travis-ci.org/aswaving/yenc.svg?branch=master)](https://travis-ci.org/aswaving/yenc)
 [![Build Status](https://ci.appveyor.com/api/projects/status/github/aswaving/yenc?svg=true)](https://ci.appveyor.com/project/aswaving/yenc)
 [![Coveralls](https://img.shields.io/coveralls/aswaving/yenc.svg)](https://coveralls.io/github/aswaving/yenc)
-[![Rust version]( https://img.shields.io/badge/rust-1.30+-blue.svg)]()
+[![Rust version]( https://img.shields.io/badge/rust-1.31+-blue.svg)]()
 [![Documentation](https://docs.rs/yenc/badge.svg)](https://docs.rs/yenc)
 [![Latest version](https://img.shields.io/crates/v/yenc.svg)](https://crates.io/crates/yenc)
 [![All downloads](https://img.shields.io/crates/d/yenc.svg)](https://crates.io/crates/yenc)

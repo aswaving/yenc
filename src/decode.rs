@@ -31,7 +31,7 @@ where
     P: AsRef<Path>,
 {
     /// Construct new DecodeOptions using the specified path as output directory.
-    /// The output directory is 
+    /// The output directory is
     pub fn new(output_dir: P) -> DecodeOptions<P> {
         DecodeOptions { output_dir }
     }

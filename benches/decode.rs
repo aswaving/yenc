@@ -1,8 +1,5 @@
-#[macro_use]
-extern crate criterion;
-
-extern crate yenc;
 use criterion::*;
+use yenc;
 
 fn decode(c: &mut Criterion) {
     let mut buf = (0..32_768).map(|c| (c % 256) as u8).collect::<Vec<u8>>();
