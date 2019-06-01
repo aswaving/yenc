@@ -217,7 +217,7 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
         match state {
             State::End => unreachable!(),
             State::Keyword => match c {
-                b'a'...b'z' | b'0'...b'9' => {
+                b'a'..=b'z' | b'0'..=b'9' => {
                     if keyword_start_idx.is_none() {
                         keyword_start_idx = Some(position);
                     }
@@ -256,7 +256,7 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                     }
                 },
                 b"size" => match c {
-                    b'0'...b'9' => {
+                    b'0'..=b'9' => {
                         if value_start_idx.is_none() {
                             value_start_idx = Some(position);
                         }
@@ -278,7 +278,7 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                     }
                 },
                 b"begin" | b"end" => match c {
-                    b'0'...b'9' => {
+                    b'0'..=b'9' => {
                         if value_start_idx.is_none() {
                             value_start_idx = Some(position);
                         }
@@ -305,7 +305,7 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                     }
                 },
                 b"line" => match c {
-                    b'0'...b'9' => {
+                    b'0'..=b'9' => {
                         if value_start_idx.is_none() {
                             value_start_idx = Some(position);
                         }
@@ -326,7 +326,7 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                     }
                 },
                 b"part" | b"total" => match c {
-                    b'0'...b'9' => {
+                    b'0'..=b'9' => {
                         if value_start_idx.is_none() {
                             value_start_idx = Some(position);
                         }
@@ -352,7 +352,7 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                     }
                 },
                 b"crc32" | b"pcrc32" => match c {
-                    b'0'...b'9' | b'A'...b'F' | b'a'...b'f' => {
+                    b'0'..=b'9' | b'A'..=b'F' | b'a'..=b'f' => {
                         if value_start_idx.is_none() {
                             value_start_idx = Some(position);
                         }

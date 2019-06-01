@@ -1,4 +1,3 @@
-// use std::error;
 use std::convert::From;
 use std::fmt;
 use std::io;
@@ -55,7 +54,7 @@ impl From<io::Error> for EncodeError {
 }
 
 impl fmt::Display for DecodeError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             DecodeError::IncompleteData {
                 ref expected_size,
@@ -78,7 +77,7 @@ impl fmt::Display for DecodeError {
 }
 
 impl fmt::Display for EncodeError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             EncodeError::PartNumberMissing => {
                 write!(f, "Multiple parts, but no part number specified.")
