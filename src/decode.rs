@@ -48,7 +48,7 @@ where
     /// - when the output file already exists
     /// - when I/O error occurs
     ///
-    pub fn decode_file(&self, input_filename: &str) -> Result<String, DecodeError> {
+    pub fn decode_file(&self, input_filename: &str) -> Result<Box<Path>, DecodeError> {
         let mut input_file = OpenOptions::new().read(true).open(input_filename)?;
         self.decode_stream(&mut input_file)
     }
@@ -57,7 +57,7 @@ where
     ///
     /// Writes the output to a file with the filename from the header line, and places it in the
     /// output path. The path of the output file is returned as String.
-    pub fn decode_stream<R>(&self, read_stream: R) -> Result<String, DecodeError>
+    pub fn decode_stream<R>(&self, read_stream: R) -> Result<Box<Path>, DecodeError>
     where
         R: Read,
     {
@@ -136,7 +136,7 @@ where
                 }
             }
         }
-        Ok(output_pathbuf.to_str().unwrap().to_string())
+        Ok(output_pathbuf.into_boxed_path())
     }
 }
 
