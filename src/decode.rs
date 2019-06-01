@@ -202,7 +202,15 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
         });
     }
 
-    let offset = line_buf.iter().position(|&c| c == b' ').unwrap() + 1;
+    let offset = match line_buf.iter().position(|&c| c == b' ') {
+        Some(pos) => pos + 1,
+        None => {
+            return Err(DecodeError::InvalidHeader {
+                line: header_line,
+                position: 9,
+            })
+        }
+    };
 
     let mut metadata: MetaData = Default::default();
     let mut state = State::Keyword;
@@ -221,7 +229,15 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                     if keyword_start_idx.is_none() {
                         keyword_start_idx = Some(position);
                     }
-                    keyword = &line_buf[keyword_start_idx.unwrap()..=position];
+                    keyword = match keyword_start_idx {
+                        Some(idx) => &line_buf[idx..=position],
+                        None => {
+                            return Err(DecodeError::InvalidHeader {
+                                line: header_line,
+                                position,
+                            })
+                        }
+                    };
                 }
                 b'=' => {
                     if keyword.is_empty() || !is_known_keyword(keyword) {
@@ -252,7 +268,15 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                         if value_start_idx.is_none() {
                             value_start_idx = Some(position);
                         }
-                        value = &line_buf[value_start_idx.unwrap()..=position];
+                        value = match value_start_idx {
+                            Some(idx) => &line_buf[idx..=position],
+                            None => {
+                                return Err(DecodeError::InvalidHeader {
+                                    line: header_line,
+                                    position,
+                                })
+                            }
+                        };
                     }
                 },
                 b"size" => match c {
@@ -260,12 +284,27 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                         if value_start_idx.is_none() {
                             value_start_idx = Some(position);
                         }
-                        value = &line_buf[value_start_idx.unwrap()..=position];
+                        value = match value_start_idx {
+                            Some(idx) => &line_buf[idx..=position],
+                            None => {
+                                return Err(DecodeError::InvalidHeader {
+                                    line: header_line,
+                                    position,
+                                })
+                            }
+                        };
                     }
                     SPACE => {
-                        metadata.size = Some(
-                            usize::from_str_radix(&String::from_utf8_lossy(value), 10).unwrap(),
-                        );
+                        metadata.size =
+                            match usize::from_str_radix(&String::from_utf8_lossy(value), 10) {
+                                Ok(size) => Some(size),
+                                Err(_) => {
+                                    return Err(DecodeError::InvalidHeader {
+                                        line: header_line,
+                                        position,
+                                    })
+                                }
+                            };
                         state = State::Keyword;
                         keyword_start_idx = None;
                         value_start_idx = None;
@@ -282,12 +321,27 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                         if value_start_idx.is_none() {
                             value_start_idx = Some(position);
                         }
-                        value = &line_buf[value_start_idx.unwrap()..=position];
+                        value = match value_start_idx {
+                            Some(idx) => &line_buf[idx..=position],
+                            None => {
+                                return Err(DecodeError::InvalidHeader {
+                                    line: header_line,
+                                    position,
+                                })
+                            }
+                        };
                     }
                     SPACE | LF | CR => {
-                        let nr = Some(
-                            usize::from_str_radix(&String::from_utf8_lossy(value), 10).unwrap(),
-                        );
+                        let nr = match usize::from_str_radix(&String::from_utf8_lossy(value), 10) {
+                            Ok(size) => Some(size),
+                            Err(_) => {
+                                return Err(DecodeError::InvalidHeader {
+                                    line: header_line,
+                                    position,
+                                })
+                            }
+                        };
+
                         if keyword == b"begin" {
                             metadata.begin = nr;
                         } else {
@@ -309,11 +363,27 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                         if value_start_idx.is_none() {
                             value_start_idx = Some(position);
                         }
-                        value = &line_buf[value_start_idx.unwrap()..=position];
+                        value = match value_start_idx {
+                            Some(idx) => &line_buf[idx..=position],
+                            None => {
+                                return Err(DecodeError::InvalidHeader {
+                                    line: header_line,
+                                    position,
+                                })
+                            }
+                        };
                     }
                     SPACE => {
                         metadata.line_length =
-                            Some(u16::from_str_radix(&String::from_utf8_lossy(value), 10).unwrap());
+                            match u16::from_str_radix(&String::from_utf8_lossy(value), 10) {
+                                Ok(size) => Some(size),
+                                Err(_) => {
+                                    return Err(DecodeError::InvalidHeader {
+                                        line: header_line,
+                                        position,
+                                    })
+                                }
+                            };
                         state = State::Keyword;
                         keyword_start_idx = None;
                         value_start_idx = None;
@@ -330,11 +400,27 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                         if value_start_idx.is_none() {
                             value_start_idx = Some(position);
                         }
-                        value = &line_buf[value_start_idx.unwrap()..=position];
+                        value = match value_start_idx {
+                            Some(idx) => &line_buf[idx..=position],
+                            None => {
+                                return Err(DecodeError::InvalidHeader {
+                                    line: header_line,
+                                    position,
+                                })
+                            }
+                        };
                     }
                     SPACE => {
-                        let number =
-                            Some(u32::from_str_radix(&String::from_utf8_lossy(value), 10).unwrap());
+                        let number = match u32::from_str_radix(&String::from_utf8_lossy(value), 10)
+                        {
+                            Ok(size) => Some(size),
+                            Err(_) => {
+                                return Err(DecodeError::InvalidHeader {
+                                    line: header_line,
+                                    position,
+                                })
+                            }
+                        };
                         if keyword == b"part" {
                             metadata.part = number;
                         } else {
@@ -356,7 +442,15 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                         if value_start_idx.is_none() {
                             value_start_idx = Some(position);
                         }
-                        value = &line_buf[value_start_idx.unwrap()..=position];
+                        value = match value_start_idx {
+                            Some(idx) => &line_buf[idx..=position],
+                            None => {
+                                return Err(DecodeError::InvalidHeader {
+                                    line: header_line,
+                                    position,
+                                })
+                            }
+                        };
                     }
                     SPACE | LF => {
                         state = if c == SPACE {
@@ -364,8 +458,15 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                         } else {
                             State::End
                         };
-                        let crc =
-                            Some(u32::from_str_radix(&String::from_utf8_lossy(value), 16).unwrap());
+                        let crc = match u32::from_str_radix(&String::from_utf8_lossy(value), 16) {
+                            Ok(size) => Some(size),
+                            Err(_) => {
+                                return Err(DecodeError::InvalidHeader {
+                                    line: header_line,
+                                    position,
+                                })
+                            }
+                        };
                         if keyword == b"crc32" {
                             metadata.crc32 = crc;
                         } else {
