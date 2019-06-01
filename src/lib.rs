@@ -1,3 +1,8 @@
+#![deny(missing_docs)]
+#![deny(rust_2018_compatibility)]
+#![deny(rust_2018_idioms)]
+#![deny(warnings)]
+
 //! [yEnc](http://www.yenc.org) is an encoding scheme to include binary files in Usenet messages.
 //!
 //! The `EncodeOptions` and `DecodeOptions` structs are the entry points for encoding and decoding.
