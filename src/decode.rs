@@ -112,8 +112,8 @@ where
                     metadata.pcrc32 = mm.pcrc32;
                 } else {
                     let decoded = decode_buffer(&line_buf[0..length])?;
-                    checksum.update_with_slice(decoded.as_slice());
-                    output_file.write_all(decoded.as_slice())?;
+                    checksum.update_with_slice(&decoded);
+                    output_file.write_all(&decoded)?;
                 }
             }
             if footer_found {
@@ -144,31 +144,27 @@ where
 ///
 /// Carriage Return (CR) and Line Feed (LF) are ignored.
 pub fn decode_buffer(input: &[u8]) -> Result<Vec<u8>, DecodeError> {
-    let mut output = Vec::<u8>::with_capacity((input.len() as f64 * 1.02) as usize);
-    let mut iter = input.iter().enumerate();
+    let mut output = Vec::<u8>::with_capacity(input.len());
+    let mut iter = input.iter().cloned().enumerate();
     while let Some((col, byte)) = iter.next() {
-        let mut byte = *byte;
+        let mut result_byte = byte;
         match byte {
             NUL | CR | LF => {
                 // for now, just continue
                 continue;
             }
-            DOT => {
-                if col == 0 {
-                    match iter.next() {
-                        Some((_, &DOT)) => {}
-                        Some((_, b)) => {
-                            output.push(byte.overflowing_sub(42).0);
-                            byte = *b;
-                        }
-                        None => {}
-                    }
+            DOT if col == 0 => match iter.next() {
+                Some((_, DOT)) => {}
+                Some((_, b)) => {
+                    output.push(byte.overflowing_sub(42).0);
+                    result_byte = b;
                 }
-            }
+                None => {}
+            },
             ESCAPE => {
                 match iter.next() {
                     Some((_, b)) => {
-                        byte = b.overflowing_sub(64).0;
+                        result_byte = b.overflowing_sub(64).0;
                     }
                     None => {
                         // for now, just continue
@@ -178,7 +174,7 @@ pub fn decode_buffer(input: &[u8]) -> Result<Vec<u8>, DecodeError> {
             }
             _ => {}
         }
-        output.push(byte.overflowing_sub(42).0);
+        output.push(result_byte.overflowing_sub(42).0);
     }
     Ok(output)
 }

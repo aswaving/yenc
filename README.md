@@ -9,7 +9,7 @@
 # yenc
 
 Encodes binaries into yEnc text and decodes yEnc encoded text back to binaries.
-Requires compiler version v1.30.1 or higher.
+Requires compiler version v1.31.1 or higher.
 
 See [documentation](http://docs.rs/yenc).
 For more information on yEnc see [Wikipedia](https://en.wikipedia.org/wiki/YEnc) and [yenc.org](http://www.yenc.org).
