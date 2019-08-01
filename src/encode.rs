@@ -225,7 +225,7 @@ where
 {
     let mut col = col;
     let mut writer = writer;
-    let mut v = Vec::<u8>::with_capacity(input.len() * 104 / 100);
+    let mut v = Vec::<u8>::with_capacity(((input.len() as f64) * 1.04) as usize);
     input.iter().for_each(|&b| {
         let encoded = encode_byte(b);
         v.push(encoded.0);
@@ -256,7 +256,7 @@ fn encode_byte(input_byte: u8) -> (u8, u8) {
 
     let output_byte = input_byte.overflowing_add(42).0;
     match output_byte {
-        NUL | CR | LF | ESCAPE => {
+        LF | CR | NUL | ESCAPE => {
             output.0 = ESCAPE;
             output.1 = output_byte.overflowing_add(64).0;
         }

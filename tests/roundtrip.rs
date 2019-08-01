@@ -66,7 +66,8 @@ fn decode(input_filename: &str, output_directory: &str) -> u32 {
         Ok(output_filename) => {
             println!(
                 "Successfully yEnc decoded {} to {}",
-                input_filename, output_filename.display()
+                input_filename,
+                output_filename.display()
             );
             0
         }
