@@ -13,7 +13,7 @@ fn decode(c: &mut Criterion) {
             buf.clear();
             b.iter(|| yenc::decode_buffer(&encoded).unwrap())
         })
-        .throughput(Throughput::Bytes(length as u32)),
+        .throughput(Throughput::Bytes(length as u64)),
     );
 }
 
