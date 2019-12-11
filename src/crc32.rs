@@ -78,6 +78,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::unreadable_literal)]
     fn test() {
         let mut crc32 = Crc32::new();
         let block = (0..2048).map(|c| c as u8).collect::<Vec<u8>>();

@@ -21,7 +21,7 @@ fn encode(input_filename: &str) {
     let total_size = input_file.metadata().unwrap().len();
     let part_size: u64 = total_size / u64::from(parts);
 
-    for part in 1..parts + 1 {
+    for part in 1..=parts {
         let output_filename = format!("{}.{:03}", input_filename, part);
         let mut output_file = File::create(&output_filename).expect("Cannot create file");
         println!("{}", output_filename);
@@ -91,7 +91,7 @@ fn encode_decode_are_equal(data: &[u8], filename: &str) -> Result<bool> {
     let mut filepath = tmpdir.clone();
     filepath.push(filename);
     let mut f = File::create(&filepath)?;
-    f.write(data).unwrap();
+    f.write_all(data).unwrap();
 
     // encode file
     encode(filepath.to_str().unwrap());
@@ -123,7 +123,7 @@ fn identical<P: AsRef<Path>>(file1: P, file2: P) -> bool {
     let size1 = File::open(file1).unwrap().read_to_end(&mut data1).unwrap();
     let mut data2 = Vec::new();
     let size2 = File::open(file2).unwrap().read_to_end(&mut data2).unwrap();
-    size1 == size2 && &data1 == &data2
+    size1 == size2 && data1 == data2
 }
 
 #[test]
