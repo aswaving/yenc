@@ -13,7 +13,7 @@ fn encode_buffer(c: &mut Criterion) {
                 yenc::encode_buffer(&buf, 0, 128, &mut output).unwrap()
             })
         })
-        .throughput(Throughput::Bytes(length as u32)),
+        .throughput(Throughput::Bytes(length as u64)),
     );
 }
 
