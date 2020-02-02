@@ -1,6 +1,6 @@
+///
 pub struct Crc32 {
-    pub crc: u32,
-    pub num_bytes: usize,
+    crc: u32,
 }
 
 #[allow(clippy::unreadable_literal)]
@@ -40,21 +40,23 @@ const POLYNOMIALS: [u32; 256] = [
 ];
 
 impl Crc32 {
+    ///
     pub fn new() -> Crc32 {
         Crc32 {
-            crc: 0,
-            num_bytes: 0,
+            crc: 0xffff_ffff,
         }
     }
 
     /// Update the CRC32 with the bytes from the slice.
-    pub fn update_with_slice(&mut self, buf: &[u8]) {
+    pub fn update(&mut self, buf: &[u8]) {
         buf.iter().for_each(|&b| {
-            let mut value = !self.crc;
-            value = POLYNOMIALS[((value as u8) ^ b) as usize] ^ (value >> 8);
-            self.crc = !value;
+            self.crc = POLYNOMIALS[((self.crc as u8) ^ b) as usize] ^ (self.crc >> 8);
         });
-        self.num_bytes += buf.len();
+    }
+
+    ///
+    pub fn finalize(self) -> u32 {
+        self.crc ^0xffff_ffff
     }
 }
 
@@ -65,24 +67,21 @@ mod tests {
     #[test]
     fn test_default() {
         let crc32 = Crc32::new();
-        assert_eq!(0, crc32.crc, "Invalid checksum");
-        assert_eq!(0, crc32.num_bytes, "Invalid number of bytes");
+        assert_eq!(0, crc32.finalize(), "Invalid checksum");
     }
 
     #[test]
     fn test_empty_slice() {
         let mut crc32 = Crc32::new();
-        crc32.update_with_slice(&[0; 0]);
-        assert_eq!(0, crc32.crc, "Invalid checksum");
-        assert_eq!(0, crc32.num_bytes, "Invalid number of bytes");
+        crc32.update(&[0; 0]);
+        assert_eq!(0, crc32.finalize(), "Invalid checksum");
     }
 
     #[test]
     fn test() {
         let mut crc32 = Crc32::new();
         let block = (0..2048).map(|c| c as u8).collect::<Vec<u8>>();
-        crc32.update_with_slice(&block);
-        assert_eq!(0x9f5edd58, crc32.crc, "Invalid checksum");
-        assert_eq!(2048, crc32.num_bytes, "Invalid number of bytes");
+        crc32.update(&block);
+        assert_eq!(0x9f5e_dd58, crc32.finalize(), "Invalid checksum");
     }
 }

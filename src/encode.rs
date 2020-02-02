@@ -154,6 +154,7 @@ impl EncodeOptions {
         let mut checksum = crc32::Crc32::new();
         let mut buffer = [0u8; 8192];
         let mut col = 0;
+        let mut num_bytes = 0;
         let mut output = BufWriter::new(output);
 
         self.check_options()?;
@@ -186,7 +187,8 @@ impl EncodeOptions {
                 &mut buffer[0..remainder]
             };
             rdr.read_exact(buf_slice)?;
-            checksum.update_with_slice(buf_slice);
+            checksum.update(buf_slice);
+            num_bytes += buf_slice.len();
             col = encode_buffer(buf_slice, col, self.line_length, &mut output)?;
             remainder -= buf_slice.len();
         }
@@ -195,13 +197,13 @@ impl EncodeOptions {
             write!(
                 output,
                 "\r\n=yend size={} part={} pcrc32={:08x}\r\n",
-                checksum.num_bytes, self.part, checksum.crc
+                num_bytes, self.part, checksum.finalize()
             )?;
         } else {
             write!(
                 output,
                 "\r\n=yend size={} crc32={:08x}\r\n",
-                checksum.num_bytes, checksum.crc
+                num_bytes, checksum.finalize()
             )?;
         }
         Ok(())

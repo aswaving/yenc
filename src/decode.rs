@@ -67,6 +67,7 @@ where
         let mut checksum = crc32::Crc32::new();
         let mut yenc_block_found = false;
         let mut metadata: MetaData = Default::default();
+        let mut num_bytes = 0;
 
         while !yenc_block_found {
             let mut line_buf = Vec::<u8>::with_capacity(2 * DEFAULT_LINE_SIZE as usize);
@@ -112,26 +113,27 @@ where
                     metadata.pcrc32 = mm.pcrc32;
                 } else {
                     let decoded = decode_buffer(&line_buf[0..length])?;
-                    checksum.update_with_slice(&decoded);
+                    checksum.update(&decoded);
+                    num_bytes += decoded.len();
                     output_file.write_all(&decoded)?;
                 }
             }
             if footer_found {
                 if let Some(expected_part_crc) = metadata.pcrc32 {
-                    if expected_part_crc != checksum.crc {
+                    if expected_part_crc != checksum.finalize() {
                         return Err(DecodeError::InvalidChecksum);
                     }
                 } else if let Some(expected_crc) = metadata.crc32 {
-                    if expected_crc != checksum.crc {
+                    if expected_crc != checksum.finalize() {
                         return Err(DecodeError::InvalidChecksum);
                     }
                 }
             }
             if let Some(expected_size) = metadata.size {
-                if expected_size != checksum.num_bytes {
+                if expected_size != num_bytes {
                     return Err(DecodeError::IncompleteData {
                         expected_size,
-                        actual_size: checksum.num_bytes,
+                        actual_size: num_bytes,
                     });
                 }
             }
@@ -505,7 +507,7 @@ mod tests {
         let metadata = parse_result.unwrap();
         assert_eq!(Some(1), metadata.part);
         assert_eq!(Some(26624), metadata.size);
-        assert_eq!(Some(0xae052b48), metadata.pcrc32);
+        assert_eq!(Some(0xae05_2b48), metadata.pcrc32);
         assert!(metadata.crc32.is_none());
     }
 
@@ -517,8 +519,8 @@ mod tests {
         let metadata = parse_result.unwrap();
         assert_eq!(Some(1), metadata.part);
         assert_eq!(Some(26624), metadata.size);
-        assert_eq!(Some(0xae052b48), metadata.pcrc32);
-        assert_eq!(Some(0xff00ff00), metadata.crc32);
+        assert_eq!(Some(0xae0_52b48), metadata.pcrc32);
+        assert_eq!(Some(0xff00_ff00), metadata.crc32);
     }
 
     #[test]
@@ -528,7 +530,7 @@ mod tests {
         let metadata = parse_result.unwrap();
         assert_eq!(Some(1), metadata.part);
         assert_eq!(Some(26624), metadata.size);
-        assert_eq!(Some(0xae052b48), metadata.pcrc32);
+        assert_eq!(Some(0xae05_2b48), metadata.pcrc32);
     }
 
     #[test]
@@ -539,7 +541,7 @@ mod tests {
         assert!(parse_result.is_ok());
         let metadata = parse_result.unwrap();
         assert_eq!(metadata.part, Some(1));
-        assert_eq!(metadata.size, Some(189463));
+        assert_eq!(metadata.size, Some(189_463));
         assert_eq!(metadata.line_length, Some(128));
         assert_eq!(
             Some("CatOnKeyboardInSpace001.jpg".to_string()),
@@ -553,7 +555,7 @@ mod tests {
         assert!(parse_result.is_ok());
         let metadata = parse_result.unwrap();
         assert_eq!(metadata.begin, Some(1));
-        assert_eq!(metadata.end, Some(189463));
+        assert_eq!(metadata.end, Some(189_463));
     }
 
     #[test]
