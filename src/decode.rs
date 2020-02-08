@@ -1,6 +1,6 @@
 use crc32fast;
 use std::fs::OpenOptions;
-use std::io::{BufRead, BufReader, Read, Seek, SeekFrom, Write};
+use std::io::{BufRead, BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 use std::path::Path;
 
 use super::constants::{CR, DEFAULT_LINE_SIZE, DOT, ESCAPE, LF, NUL, SPACE};
@@ -86,10 +86,12 @@ where
         }
 
         if yenc_block_found {
-            let mut output= OpenOptions::new()
+            let output_file = OpenOptions::new()
                 .create(true)
                 .write(true)
                 .open(output_pathbuf.as_path())?;
+
+            let mut output = BufWriter::new(output_file);
 
             let mut footer_found = false;
             while !footer_found {
