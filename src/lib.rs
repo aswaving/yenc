@@ -33,7 +33,6 @@
 //! ```
 //!
 mod constants;
-mod crc32;
 mod decode;
 mod encode;
 mod errors;

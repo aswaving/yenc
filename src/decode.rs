@@ -1,9 +1,9 @@
+use crc32fast;
 use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom, Write};
 use std::path::Path;
 
 use super::constants::{CR, DEFAULT_LINE_SIZE, DOT, ESCAPE, LF, NUL, SPACE};
-use super::crc32;
 use super::errors::DecodeError;
 
 /// Options for decoding.
@@ -64,7 +64,7 @@ where
         let mut rdr = BufReader::new(read_stream);
         let mut output_pathbuf = self.output_dir.as_ref().to_path_buf();
 
-        let mut checksum = crc32::Crc32::new();
+        let mut checksum = crc32fast::Hasher::new();
         let mut yenc_block_found = false;
         let mut metadata: MetaData = Default::default();
         let mut num_bytes = 0;
@@ -86,7 +86,7 @@ where
         }
 
         if yenc_block_found {
-            let mut output_file = OpenOptions::new()
+            let mut output= OpenOptions::new()
                 .create(true)
                 .write(true)
                 .open(output_pathbuf.as_path())?;
@@ -103,7 +103,7 @@ where
                     metadata.begin = part_metadata.begin;
                     metadata.end = part_metadata.end;
                     if let Some(begin) = metadata.begin {
-                        output_file.seek(SeekFrom::Start((begin - 1) as u64))?;
+                        output.seek(SeekFrom::Start((begin - 1) as u64))?;
                     }
                 } else if line_buf.starts_with(b"=yend ") {
                     footer_found = true;
@@ -115,7 +115,7 @@ where
                     let decoded = decode_buffer(&line_buf[0..length])?;
                     checksum.update(&decoded);
                     num_bytes += decoded.len();
-                    output_file.write_all(&decoded)?;
+                    output.write_all(&decoded)?;
                 }
             }
             if footer_found {
