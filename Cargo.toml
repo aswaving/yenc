@@ -7,14 +7,12 @@ repository = "https://github.com/aswaving/yenc"
 documentation = "https://docs.rs/yenc/0.1.0/yenc/"
 categories = ["encoding"]
 keywords = ["yenc", "encode", "decode"]
-license = "MIT"
+license = "MIT OR Apache-2.0"
 autobenches = false
 edition = "2018"
 
 [dependencies]
-
-[profile.release]
-debug = true
+crc32fast = "1.2.0"
 
 [dev-dependencies]
 criterion = "0.2.10"
@@ -28,3 +26,9 @@ harness = false
 [[bench]]
 name = "decode"
 harness = false
+
+[profile.release]
+debug = true
+
+[profile.bench]
+debug = true
