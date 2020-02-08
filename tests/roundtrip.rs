@@ -91,7 +91,7 @@ fn encode_decode_are_equal(data: &[u8], filename: &str) -> Result<bool> {
     let mut filepath = tmpdir.clone();
     filepath.push(filename);
     let mut f = File::create(&filepath)?;
-    f.write(data).unwrap();
+    f.write_all(data).unwrap();
 
     // encode file
     encode(filepath.to_str().unwrap());
