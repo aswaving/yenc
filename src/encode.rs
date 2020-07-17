@@ -1,5 +1,4 @@
 use super::constants::{CR, DEFAULT_LINE_SIZE, DOT, ESCAPE, LF, NUL};
-use super::crc32;
 use super::errors::EncodeError;
 
 use std::fs::File;
@@ -35,7 +34,7 @@ impl Default for EncodeOptions {
 }
 
 impl EncodeOptions {
-    /// Constructs a new EncodeOptions with defaults
+    /// Constructs a new EncodeOptions with defaults, see Default impl.
     pub fn new() -> EncodeOptions {
         Default::default()
     }
@@ -92,7 +91,7 @@ impl EncodeOptions {
     ///                                         .begin(1)
     ///                                         .end(38400);
     /// let mut output_file = std::fs::File::create("test1.bin.yenc.001").unwrap();
-    /// encode_options.encode_file("test1.bin", &mut output_file);
+    /// encode_options.encode_file("test1.bin", &mut output_file).unwrap();
     /// ```
     /// # Errors
     /// - when the output file already exists
@@ -151,9 +150,10 @@ impl EncodeOptions {
         W: Write,
     {
         let mut rdr = BufReader::new(input);
-        let mut checksum = crc32::Crc32::new();
+        let mut checksum = crc32fast::Hasher::new();
         let mut buffer = [0u8; 8192];
         let mut col = 0;
+        let mut num_bytes = 0;
         let mut output = BufWriter::new(output);
 
         self.check_options()?;
@@ -186,7 +186,8 @@ impl EncodeOptions {
                 &mut buffer[0..remainder]
             };
             rdr.read_exact(buf_slice)?;
-            checksum.update_with_slice(buf_slice);
+            checksum.update(buf_slice);
+            num_bytes += buf_slice.len();
             col = encode_buffer(buf_slice, col, self.line_length, &mut output)?;
             remainder -= buf_slice.len();
         }
@@ -195,13 +196,16 @@ impl EncodeOptions {
             write!(
                 output,
                 "\r\n=yend size={} part={} pcrc32={:08x}\r\n",
-                checksum.num_bytes, self.part, checksum.crc
+                num_bytes,
+                self.part,
+                checksum.finalize()
             )?;
         } else {
             write!(
                 output,
                 "\r\n=yend size={} crc32={:08x}\r\n",
-                checksum.num_bytes, checksum.crc
+                num_bytes,
+                checksum.finalize()
             )?;
         }
         Ok(())

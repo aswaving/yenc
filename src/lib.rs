@@ -1,7 +1,6 @@
 #![deny(missing_docs)]
 #![deny(rust_2018_compatibility)]
 #![deny(rust_2018_idioms)]
-#![deny(warnings)]
 #![forbid(unsafe_code, missing_docs, missing_debug_implementations)]
 
 //! [yEnc](http://www.yenc.org) is an encoding scheme to include binary files in Usenet messages.
@@ -33,7 +32,6 @@
 //! ```
 //!
 mod constants;
-mod crc32;
 mod decode;
 mod encode;
 mod errors;
