@@ -498,6 +498,7 @@ fn is_known_keyword(keyword_slice: &[u8]) -> bool {
 }
 
 #[cfg(test)]
+#[allow(clippy::unreadable_literal)]
 mod tests {
     use super::{decode_buffer, parse_header_line};
 
