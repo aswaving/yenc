@@ -1,5 +1,4 @@
 use super::constants::{CR, DEFAULT_LINE_SIZE, DOT, ESCAPE, LF, NUL};
-use crc32fast;
 use super::errors::EncodeError;
 
 use std::fs::File;
@@ -197,13 +196,16 @@ impl EncodeOptions {
             write!(
                 output,
                 "\r\n=yend size={} part={} pcrc32={:08x}\r\n",
-                num_bytes, self.part, checksum.finalize()
+                num_bytes,
+                self.part,
+                checksum.finalize()
             )?;
         } else {
             write!(
                 output,
                 "\r\n=yend size={} crc32={:08x}\r\n",
-                num_bytes, checksum.finalize()
+                num_bytes,
+                checksum.finalize()
             )?;
         }
         Ok(())

@@ -13,7 +13,7 @@ fn decode_buffer(c: &mut Criterion) {
             buf.clear();
             b.iter(|| yenc::decode_buffer(&encoded).unwrap())
         })
-        .throughput(Throughput::Bytes(length as u32)),
+        .throughput(Throughput::Bytes(length as u64)),
     );
 }
 
@@ -38,7 +38,8 @@ fn decode_stream(c: &mut Criterion) {
                 let options = yenc::DecodeOptions::new("/tmp");
                 options.decode_stream(&mut input_r).unwrap();
             });
-        }).throughput(Throughput::Bytes(length as u32)),
+        })
+        .throughput(Throughput::Bytes(length as u64)),
     );
 }
 

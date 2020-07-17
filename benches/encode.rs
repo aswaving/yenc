@@ -14,7 +14,7 @@ fn encode_buffer(c: &mut Criterion) {
                 yenc::encode_buffer(&buf, 0, 128, &mut output).unwrap()
             })
         })
-        .throughput(Throughput::Bytes(length as u32)),
+        .throughput(Throughput::Bytes(length as u64)),
     );
 }
 fn encode_stream(c: &mut Criterion) {
@@ -26,7 +26,7 @@ fn encode_stream(c: &mut Criterion) {
                 assert_eq!(32_768, buf.len());
                 let length = buf.len();
                 let options = yenc::EncodeOptions::new().end(length as u64).begin(1);
-                let output = vec![0; length * 110 /100];
+                let output = vec![0; length * 110 / 100];
                 let mut input_r = Cursor::new(buf);
                 let mut output_r = Cursor::new(output);
                 options
@@ -34,7 +34,7 @@ fn encode_stream(c: &mut Criterion) {
                     .unwrap();
             })
         })
-        .throughput(Throughput::Bytes(32_768 as u32)),
+        .throughput(Throughput::Bytes(32_768 as u64)),
     );
 }
 

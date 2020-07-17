@@ -1,4 +1,3 @@
-use crc32fast;
 use std::fs::OpenOptions;
 use std::io::{BufRead, BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 use std::path::Path;
