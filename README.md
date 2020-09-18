@@ -12,6 +12,6 @@ Encodes binaries into yEnc text and decodes yEnc encoded text back to binaries.
 Requires compiler version v1.36.0 or higher.
 
 See [documentation](http://docs.rs/yenc).
-For more information on yEnc see [Wikipedia](https://en.wikipedia.org/wiki/YEnc) and [yenc.org](http://www.yenc.org) (dead link?).
+For more information on yEnc see [Wikipedia](https://en.wikipedia.org/wiki/YEnc) and [yenc.org](http://www.yenc.org) (this link may be blocked by some providers :-().
 
 The public API is not yet stable.
