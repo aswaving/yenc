@@ -12,11 +12,11 @@ autobenches = false
 edition = "2018"
 
 [dependencies]
-crc32fast = "1.2.0"
+crc32fast = "1.2.1"
 
 [dev-dependencies]
-criterion = "0.3.3"
-rand = "0.7.3"
+criterion = "0.3.4"
+rand = "0.8.3"
 lazy_static = "1.4.0"
 
 [[bench]]
