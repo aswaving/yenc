@@ -1,6 +1,5 @@
 use criterion::*;
 use std::io::Cursor;
-use yenc;
 
 fn encode_buffer(c: &mut Criterion) {
     let buf = (0..32_768).map(|c| (c % 256) as u8).collect::<Vec<u8>>();

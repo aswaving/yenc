@@ -1,7 +1,6 @@
 use std::env::temp_dir;
 use std::fs::File;
 use std::io::Read;
-use yenc;
 
 #[test]
 fn encode() {

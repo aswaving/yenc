@@ -1,5 +1,4 @@
 use criterion::*;
-use yenc;
 
 fn decode_buffer(c: &mut Criterion) {
     let mut buf = (0..32_768).map(|c| (c % 256) as u8).collect::<Vec<u8>>();
