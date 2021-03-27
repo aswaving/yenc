@@ -188,7 +188,7 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
         Keyword,
         Value,
         End,
-    };
+    }
 
     let header_line = String::from_utf8_lossy(line_buf).to_string();
     if !(header_line.starts_with("=ybegin ")
