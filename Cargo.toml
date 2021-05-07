@@ -15,7 +15,7 @@ edition = "2018"
 crc32fast = "1.2.1"
 
 [dev-dependencies]
-criterion = "0.3.4"
+criterion = { version = "0.3.4", features = ["html_reports"] }
 rand = "0.8.3"
 lazy_static = "1.4.0"
 
