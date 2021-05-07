@@ -6,14 +6,16 @@ fn decode_buffer(c: &mut Criterion) {
     let mut encoded = Vec::with_capacity(32_768 * 102 / 100);
     yenc::encode_buffer(&buf, 0, 128, &mut encoded).unwrap();
 
-    c.bench(
-        "decode",
-        Benchmark::new("decode 32k", move |b| {
+    let mut group = c.benchmark_group("decode");
+
+    group
+        .bench_function("decode 32k", move |b| {
             buf.clear();
             b.iter(|| yenc::decode_buffer(&encoded).unwrap())
         })
-        .throughput(Throughput::Bytes(length as u64)),
-    );
+        .throughput(Throughput::Bytes(length as u64));
+
+    group.finish();
 }
 
 fn decode_stream(c: &mut Criterion) {
@@ -28,9 +30,9 @@ fn decode_stream(c: &mut Criterion) {
         .unwrap();
     let input = output_r.into_inner();
 
-    c.bench(
-        "decode_stream",
-        Benchmark::new("decode_stream 32k", move |b| {
+    let mut group = c.benchmark_group("decode_stream");
+    group
+        .bench_function("decode_stream 32k", move |b| {
             b.iter(|| {
                 let i = input.clone();
                 let mut input_r = std::io::Cursor::new(i);
@@ -38,8 +40,7 @@ fn decode_stream(c: &mut Criterion) {
                 options.decode_stream(&mut input_r).unwrap();
             });
         })
-        .throughput(Throughput::Bytes(length as u64)),
-    );
+        .throughput(Throughput::Bytes(length as u64));
 }
 
 criterion_group!(benches, decode_buffer, decode_stream);

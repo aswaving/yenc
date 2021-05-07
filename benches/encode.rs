@@ -5,21 +5,20 @@ fn encode_buffer(c: &mut Criterion) {
     let buf = (0..32_768).map(|c| (c % 256) as u8).collect::<Vec<u8>>();
     let length = buf.len();
     let mut output = Vec::with_capacity(32_768 * 102 / 100);
-    c.bench(
-        "encode",
-        Benchmark::new("encode 32k", move |b| {
+    let mut group = c.benchmark_group("encode");
+    group
+        .bench_function("encode 32k", move |b| {
             b.iter(|| {
                 output.clear();
                 yenc::encode_buffer(&buf, 0, 128, &mut output).unwrap()
             })
         })
-        .throughput(Throughput::Bytes(length as u64)),
-    );
+        .throughput(Throughput::Bytes(length as u64));
 }
 fn encode_stream(c: &mut Criterion) {
-    c.bench(
-        "encode_stream",
-        Benchmark::new("encode_stream 32k", |b| {
+    let mut group = c.benchmark_group("encode_stream");
+    group
+        .bench_function("encode_stream 32k", |b| {
             b.iter(|| {
                 let buf = (0..32_768).map(|c| (c % 256) as u8).collect::<Vec<u8>>();
                 assert_eq!(32_768, buf.len());
@@ -33,8 +32,7 @@ fn encode_stream(c: &mut Criterion) {
                     .unwrap();
             })
         })
-        .throughput(Throughput::Bytes(32_768 as u64)),
-    );
+        .throughput(Throughput::Bytes(32_768 as u64));
 }
 
 criterion_group!(benches, encode_buffer, encode_stream);
