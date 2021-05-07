@@ -295,7 +295,7 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                     }
                     SPACE => {
                         metadata.size =
-                            match usize::from_str_radix(&String::from_utf8_lossy(value), 10) {
+                            match String::from_utf8_lossy(value).parse::<usize>() {
                                 Ok(size) => Some(size),
                                 Err(_) => {
                                     return Err(DecodeError::InvalidHeader {
@@ -331,7 +331,7 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                         };
                     }
                     SPACE | LF | CR => {
-                        let nr = match usize::from_str_radix(&String::from_utf8_lossy(value), 10) {
+                        let nr = match String::from_utf8_lossy(value).parse::<usize>() {
                             Ok(size) => Some(size),
                             Err(_) => {
                                 return Err(DecodeError::InvalidHeader {
@@ -374,7 +374,7 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                     }
                     SPACE => {
                         metadata.line_length =
-                            match u16::from_str_radix(&String::from_utf8_lossy(value), 10) {
+                            match String::from_utf8_lossy(value).parse() {
                                 Ok(size) => Some(size),
                                 Err(_) => {
                                     return Err(DecodeError::InvalidHeader {
@@ -410,7 +410,7 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                         };
                     }
                     SPACE => {
-                        let number = match u32::from_str_radix(&String::from_utf8_lossy(value), 10)
+                        let number = match String::from_utf8_lossy(value).parse::<u32>()
                         {
                             Ok(size) => Some(size),
                             Err(_) => {
