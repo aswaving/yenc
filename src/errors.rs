@@ -1,7 +1,6 @@
 use std::convert::From;
 use std::fmt;
 use std::io;
-use std::iter;
 
 /// Error enum for errors that can be encountered while decoding.
 #[derive(Debug)]
@@ -64,12 +63,9 @@ impl fmt::Display for DecodeError {
                 "Incomplete data: expected size {}, actual size {}",
                 expected_size, actual_size
             ),
-            DecodeError::InvalidHeader { ref line, position } => write!(
-                f,
-                "Invalid header: \n{}\n{}^",
-                line,
-                iter::repeat(" ").take(position).collect::<String>()
-            ),
+            DecodeError::InvalidHeader { ref line, position } => {
+                write!(f, "Invalid header: \n{}\n{}^", line, " ".repeat(position))
+            }
             DecodeError::InvalidChecksum => write!(f, "Invalid checksum"),
             DecodeError::IoError(ref err) => write!(f, "I/O error {}", err),
         }
