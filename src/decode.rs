@@ -294,16 +294,15 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                         };
                     }
                     SPACE => {
-                        metadata.size =
-                            match String::from_utf8_lossy(value).parse::<usize>() {
-                                Ok(size) => Some(size),
-                                Err(_) => {
-                                    return Err(DecodeError::InvalidHeader {
-                                        line: header_line,
-                                        position,
-                                    })
-                                }
-                            };
+                        metadata.size = match String::from_utf8_lossy(value).parse::<usize>() {
+                            Ok(size) => Some(size),
+                            Err(_) => {
+                                return Err(DecodeError::InvalidHeader {
+                                    line: header_line,
+                                    position,
+                                })
+                            }
+                        };
                         state = State::Keyword;
                         keyword_start_idx = None;
                         value_start_idx = None;
@@ -373,16 +372,15 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                         };
                     }
                     SPACE => {
-                        metadata.line_length =
-                            match String::from_utf8_lossy(value).parse() {
-                                Ok(size) => Some(size),
-                                Err(_) => {
-                                    return Err(DecodeError::InvalidHeader {
-                                        line: header_line,
-                                        position,
-                                    })
-                                }
-                            };
+                        metadata.line_length = match String::from_utf8_lossy(value).parse() {
+                            Ok(size) => Some(size),
+                            Err(_) => {
+                                return Err(DecodeError::InvalidHeader {
+                                    line: header_line,
+                                    position,
+                                })
+                            }
+                        };
                         state = State::Keyword;
                         keyword_start_idx = None;
                         value_start_idx = None;
@@ -410,8 +408,7 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                         };
                     }
                     SPACE => {
-                        let number = match String::from_utf8_lossy(value).parse::<u32>()
-                        {
+                        let number = match String::from_utf8_lossy(value).parse::<u32>() {
                             Ok(size) => Some(size),
                             Err(_) => {
                                 return Err(DecodeError::InvalidHeader {
@@ -520,7 +517,7 @@ mod tests {
         let metadata = parse_result.unwrap();
         assert_eq!(Some(1), metadata.part);
         assert_eq!(Some(26624), metadata.size);
-        assert_eq!(Some(0xae0_52b48), metadata.pcrc32);
+        assert_eq!(Some(0xae05_2b48), metadata.pcrc32);
         assert_eq!(Some(0xff00_ff00), metadata.crc32);
     }
 
