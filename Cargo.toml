@@ -10,6 +10,7 @@ keywords = ["yenc", "encode", "decode"]
 license = "MIT OR Apache-2.0"
 autobenches = false
 edition = "2018"
+readme = "README.md"
 
 [dependencies]
 crc32fast = "1.2.1"
