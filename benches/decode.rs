@@ -36,7 +36,7 @@ fn decode_stream(c: &mut Criterion) {
             b.iter(|| {
                 let i = input.clone();
                 let mut input_r = std::io::Cursor::new(i);
-                let options = yenc::DecodeOptions::new("/tmp");
+                let options = yenc::DecodeOptions::new("/tmp", None);
                 options.decode_stream(&mut input_r).unwrap();
             });
         })

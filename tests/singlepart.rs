@@ -26,7 +26,7 @@ fn decode() {
     let tmpdir = temp_dir();
     let mut tmpfile = tmpdir.clone();
     tmpfile.push("testfile.txt");
-    let decode_options = yenc::DecodeOptions::new(tmpdir);
+    let decode_options = yenc::DecodeOptions::new(tmpdir, None);
     decode_options.decode_stream(&mut c).unwrap();
     File::open(&tmpfile)
         .unwrap()

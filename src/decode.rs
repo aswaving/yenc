@@ -10,6 +10,7 @@ use super::errors::DecodeError;
 #[derive(Debug)]
 pub struct DecodeOptions<P> {
     output_dir: P,
+    override_filename: Option<P>,
 }
 
 #[derive(Default, Debug)]
@@ -31,8 +32,11 @@ where
 {
     /// Construct new DecodeOptions using the specified path as output directory.
     /// The output directory is
-    pub fn new(output_dir: P) -> DecodeOptions<P> {
-        DecodeOptions { output_dir }
+    pub fn new(output_dir: P, override_filename: Option<P>) -> DecodeOptions<P> {
+        DecodeOptions {
+            output_dir,
+            override_filename,
+        }
     }
     /// Decodes the input file in a new output file.
     ///
@@ -78,7 +82,9 @@ where
                 yenc_block_found = true;
                 // parse header line and determine output filename
                 metadata = parse_header_line(&line_buf)?;
-                if let Some(ref name) = metadata.name {
+                if let Some(ref name) = self.override_filename {
+                    output_pathbuf.push(name);
+                } else if let Some(ref name) = metadata.name {
                     output_pathbuf.push(name.trim());
                 }
             }

@@ -55,7 +55,7 @@ fn encode(input_filename: &str) {
 }
 
 fn decode(input_filename: &str, output_directory: &str) -> u32 {
-    let decode_options = yenc::DecodeOptions::new(output_directory);
+    let decode_options = yenc::DecodeOptions::new(output_directory, None);
     match decode_options.decode_file(&input_filename) {
         Err(err) => {
             println!("Error yEnc decoding {}: {}", input_filename, err);
