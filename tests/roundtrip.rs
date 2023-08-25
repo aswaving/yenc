@@ -31,7 +31,7 @@ fn encode(input_filename: &str) {
             total_size
         };
 
-        let encode_options = yenc::EncodeOptions::default()
+        let encode_options = yenc::EncodeOptions::new()
             .parts(parts)
             .part(part)
             .begin(begin)
