@@ -90,6 +90,10 @@ where
                 .write(true)
                 .open(output_pathbuf.as_path())?;
 
+            if let Some(size) = metadata.size {
+                output_file.set_len(size as u64)?;
+            }
+
             let mut output = BufWriter::new(output_file);
 
             let mut footer_found = false;
