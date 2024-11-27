@@ -9,11 +9,11 @@ fn decode_buffer(c: &mut Criterion) {
     let mut group = c.benchmark_group("decode");
 
     group
+        .throughput(Throughput::Bytes(length as u64))
         .bench_function("decode 32k", move |b| {
             buf.clear();
             b.iter(|| yenc::decode_buffer(&encoded).unwrap())
-        })
-        .throughput(Throughput::Bytes(length as u64));
+        });
 
     group.finish();
 }
@@ -32,6 +32,7 @@ fn decode_stream(c: &mut Criterion) {
 
     let mut group = c.benchmark_group("decode_stream");
     group
+        .throughput(Throughput::Bytes(length as u64))
         .bench_function("decode_stream 32k", move |b| {
             b.iter(|| {
                 let i = input.clone();
@@ -39,8 +40,7 @@ fn decode_stream(c: &mut Criterion) {
                 let options = yenc::DecodeOptions::new("/tmp");
                 options.decode_stream(&mut input_r).unwrap();
             });
-        })
-        .throughput(Throughput::Bytes(length as u64));
+        });
 }
 
 criterion_group!(benches, decode_buffer, decode_stream);
