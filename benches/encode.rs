@@ -32,7 +32,7 @@ fn encode_stream(c: &mut Criterion) {
                     .unwrap();
             })
         })
-        .throughput(Throughput::Bytes(32_768 as u64));
+        .throughput(Throughput::Bytes(32_768));
 }
 
 criterion_group!(benches, encode_buffer, encode_stream);

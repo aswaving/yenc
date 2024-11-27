@@ -13,7 +13,7 @@ fn encode(input_filename: &str) {
     let parts = 1;
 
     println!("{}", input_filename);
-    let input_file = File::open(&input_filename).expect("Cannot open file");
+    let input_file = File::open(input_filename).expect("Cannot open file");
 
     let path = Path::new(&input_filename);
     let total_size = input_file.metadata().unwrap().len();
@@ -56,7 +56,7 @@ fn encode(input_filename: &str) {
 
 fn decode(input_filename: &str, output_directory: &str) -> u32 {
     let decode_options = yenc::DecodeOptions::new(output_directory);
-    match decode_options.decode_file(&input_filename) {
+    match decode_options.decode_file(input_filename) {
         Err(err) => {
             println!("Error yEnc decoding {}: {}", input_filename, err);
             1

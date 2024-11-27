@@ -87,6 +87,7 @@ where
         if yenc_block_found {
             let output_file = OpenOptions::new()
                 .create(true)
+                .truncate(false)
                 .write(true)
                 .open(output_pathbuf.as_path())?;
 
@@ -592,7 +593,7 @@ mod tests {
 
     #[test]
     fn decode_invalid() {
-        assert!(decode_buffer(&[b'=']).unwrap().is_empty());
+        assert!(decode_buffer(b"=").unwrap().is_empty());
     }
 
     #[test]
