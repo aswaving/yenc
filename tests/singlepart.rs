@@ -34,3 +34,22 @@ fn decode() {
         .unwrap();
     assert_eq!(decoded.as_slice(), &expected_decoded[..]);
 }
+
+#[test]
+fn decode_no_checksums() {
+    let data = include_bytes!("../testdata/yenc.org/testfile_no_checksums.txt.yenc");
+    let expected_decoded = include_bytes!("../testdata/yenc.org/testfile.txt");
+    let mut decoded = Vec::<u8>::new();
+    let mut c = std::io::Cursor::new(&data[..]);
+    let tmpdir = temp_dir();
+    let mut tmpfile = tmpdir.clone();
+    tmpfile.push("testfile.txt");
+    let decode_options = yenc::DecodeOptions::new(tmpdir);
+    decode_options.decode_stream(&mut c).unwrap();
+    File::open(&tmpfile)
+        .unwrap()
+        .read_to_end(&mut decoded)
+        .unwrap();
+
+    assert_eq!(decoded.as_slice(), &expected_decoded[..]);
+}
