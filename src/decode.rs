@@ -135,12 +135,16 @@ where
                     }
                 }
             }
-            if let Some(expected_size) = metadata.size {
-                if expected_size != num_bytes {
-                    return Err(DecodeError::IncompleteData {
-                        expected_size,
-                        actual_size: num_bytes,
-                    });
+
+            if let Some(end) = metadata.end {
+                if let Some(begin) = metadata.begin {
+                    let expected_size = end - begin + 1;
+                    if expected_size != num_bytes {
+                        return Err(DecodeError::IncompleteData {
+                            expected_size,
+                            actual_size: num_bytes,
+                        });
+                    }
                 }
             }
         }
@@ -205,6 +209,8 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
             position: 0,
         });
     }
+
+    let is_yend = header_line.starts_with("=yend ");
 
     let offset = match line_buf.iter().position(|&c| c == b' ') {
         Some(pos) => pos + 1,
@@ -311,6 +317,17 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                         state = State::Keyword;
                         keyword_start_idx = None;
                         value_start_idx = None;
+                    }
+                    LF | CR if is_yend => {
+                        metadata.size = match String::from_utf8_lossy(value).parse::<usize>() {
+                            Ok(size) => Some(size),
+                            Err(_) => {
+                                return Err(DecodeError::InvalidHeader {
+                                    line: header_line,
+                                    position,
+                                })
+                            }
+                        };
                     }
                     _ => {
                         return Err(DecodeError::InvalidHeader {
@@ -431,6 +448,19 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                         keyword_start_idx = None;
                         value_start_idx = None;
                     }
+                    LF | CR if is_yend && keyword == b"part" => {
+                        let number = match String::from_utf8_lossy(value).parse::<u32>() {
+                            Ok(size) => Some(size),
+                            Err(_) => {
+                                return Err(DecodeError::InvalidHeader {
+                                    line: header_line,
+                                    position,
+                                })
+                            }
+                        };
+
+                        metadata.part = number;
+                    }
                     _ => {
                         return Err(DecodeError::InvalidHeader {
                             line: header_line,
@@ -534,6 +564,25 @@ mod tests {
         assert_eq!(Some(1), metadata.part);
         assert_eq!(Some(26624), metadata.size);
         assert_eq!(Some(0xae05_2b48), metadata.pcrc32);
+    }
+
+    #[test]
+    fn parse_valid_footer_end_space_no_checksums() {
+        let parse_result = parse_header_line(b"=yend size=26624 part=1\n");
+        assert!(parse_result.is_ok());
+        let metadata = parse_result.unwrap();
+        assert_eq!(Some(1), metadata.part);
+        assert_eq!(Some(26624), metadata.size);
+        assert_eq!(None, metadata.pcrc32);
+        assert_eq!(None, metadata.crc32);
+
+        let parse_result = parse_header_line(b"=yend size=26624 part=1\r\n");
+        assert!(parse_result.is_ok());
+        let metadata = parse_result.unwrap();
+        assert_eq!(Some(1), metadata.part);
+        assert_eq!(Some(26624), metadata.size);
+        assert_eq!(None, metadata.pcrc32);
+        assert_eq!(None, metadata.crc32);
     }
 
     #[test]
