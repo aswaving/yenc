@@ -9,6 +9,7 @@ use std::path::Path;
 /// The entry point for encoding a file (part)
 /// to a file or (TCP) stream.
 #[derive(Debug)]
+#[must_use]
 pub struct EncodeOptions {
     line_length: u8,
     parts: u32,
@@ -135,8 +136,8 @@ impl EncodeOptions {
     }
 
     /// Encodes the date from input from stream and writes the encoded data to the output stream.
-    /// The input stream does not need to be a file, therefore, size and input_filename
-    /// must be specified. The input_filename ends up as the filename in the yenc header.
+    /// The input stream does not need to be a file, therefore, size and `input_filename``
+    /// must be specified. The `input_filename` ends up as the filename in the yenc header.
     #[allow(clippy::write_with_newline)]
     pub fn encode_stream<R, W>(
         &self,
@@ -149,14 +150,13 @@ impl EncodeOptions {
         R: Read + Seek,
         W: Write,
     {
+        self.check_options()?;
         let mut rdr = BufReader::new(input);
         let mut checksum = crc32fast::Hasher::new();
         let mut buffer = [0u8; 8192];
         let mut col = 0;
         let mut num_bytes = 0;
         let mut output = BufWriter::new(output);
-
-        self.check_options()?;
 
         if self.parts == 1 {
             write!(
@@ -176,9 +176,16 @@ impl EncodeOptions {
             write!(output, "=ypart begin={} end={}\r\n", self.begin, self.end)?;
         }
 
-        rdr.seek(SeekFrom::Start(self.begin - 1))?;
+        let (seek_pos, mut remainder) = if self.parts == 1 {
+            let r = usize::try_from(length).map_err(|_| EncodeError::PartOffsetsInvalidRange)?;
+            (0u64, r)
+        } else {
+            let r = usize::try_from(self.end - self.begin + 1)
+                .map_err(|_| EncodeError::PartOffsetsInvalidRange)?;
+            (self.begin - 1, r)
+        };
+        rdr.seek(SeekFrom::Start(seek_pos))?;
 
-        let mut remainder = (self.end - self.begin + 1) as usize;
         while remainder > 0 {
             let buf_slice = if remainder > buffer.len() {
                 &mut buffer[..]
@@ -229,52 +236,74 @@ where
 {
     let mut col = col;
     let mut writer = writer;
-    let mut v = Vec::<u8>::with_capacity(((input.len() as f64) * 1.04) as usize);
-    input.iter().for_each(|&b| {
+    // Stack-allocated line buffer: worst case all bytes escaped (×2) + CRLF.
+    // line_length is u8 (max 255), so max bytes per line = 255×2 + 2 = 512.
+    let mut line_buf = [0u8; 514];
+    let mut line_len = 0usize;
+
+    for &b in input {
         let encoded = encode_byte(b);
-        v.push(encoded.0);
-        col += match encoded.0 {
+        match encoded.0 {
             ESCAPE => {
-                v.push(encoded.1);
-                2
+                line_buf[line_len] = ESCAPE;
+                line_buf[line_len + 1] = encoded.1;
+                line_len += 2;
+                col = col.wrapping_add(2);
             }
             DOT if col == 0 => {
-                v.push(DOT);
-                2
+                line_buf[line_len] = DOT;
+                line_buf[line_len + 1] = DOT;
+                line_len += 2;
+                col = col.wrapping_add(2);
             }
-            _ => 1,
-        };
-        if col >= line_length {
-            v.push(CR);
-            v.push(LF);
-            col = 0;
+            out => {
+                line_buf[line_len] = out;
+                line_len += 1;
+                col = col.wrapping_add(1);
+            }
         }
-    });
-    writer.write_all(&v)?;
+        if col >= line_length {
+            line_buf[line_len] = CR;
+            line_buf[line_len + 1] = LF;
+            line_len += 2;
+            writer.write_all(&line_buf[..line_len])?;
+            col = 0;
+            line_len = 0;
+        }
+    }
+    if line_len > 0 {
+        writer.write_all(&line_buf[..line_len])?;
+    }
     Ok(col)
 }
 
+const fn build_encode_table() -> [(u8, u8); 256] {
+    let mut table = [(0u8, 0u8); 256];
+    let mut i = 0usize;
+    while i < 256 {
+        let output_byte = (i as u8).wrapping_add(42);
+        table[i] = match output_byte {
+            NUL | LF | CR | ESCAPE => (ESCAPE, output_byte.wrapping_add(64)),
+            _ => (output_byte, 0),
+        };
+        i += 1;
+    }
+    table
+}
+
+const ENCODE_TABLE: [(u8, u8); 256] = build_encode_table();
+
 #[inline(always)]
 fn encode_byte(input_byte: u8) -> (u8, u8) {
-    let mut output = (0, 0);
-
-    let output_byte = input_byte.overflowing_add(42).0;
-    match output_byte {
-        LF | CR | NUL | ESCAPE => {
-            output.0 = ESCAPE;
-            output.1 = output_byte.overflowing_add(64).0;
-        }
-        _ => {
-            output.0 = output_byte;
-        }
-    };
-    output
+    ENCODE_TABLE[input_byte as usize]
 }
 
 #[cfg(test)]
 mod tests {
+    use std::io::Cursor;
+
     use super::super::constants::{CR, ESCAPE, LF, NUL};
-    use super::{encode_buffer, encode_byte, EncodeOptions};
+    use super::*;
 
     #[test]
     fn escape_null() {
@@ -376,5 +405,26 @@ mod tests {
         let encode_options = EncodeOptions::new().parts(2).part(1).begin(38400).end(1);
         let vr = encode_options.check_options();
         assert!(vr.is_err());
+    }
+
+    #[test]
+    fn encode_options_line_length() {
+        let input = Cursor::new((0..512).map(|c| (c & 0xff) as u8).collect::<Vec<u8>>());
+        let mut output = Vec::new();
+        let output_cursor = Cursor::new(&mut output);
+
+        let encode_options = EncodeOptions::new().line_length(80);
+        encode_options
+            .encode_stream(input, output_cursor, 80, "line_length_test")
+            .unwrap();
+        // Use lines() to skip the =ybegin header and check the first data line.
+        // lines() strips the line ending, so len() == line_length for a full line.
+        let first_data_line = String::from_utf8(output)
+            .unwrap()
+            .lines()
+            .find(|l| !l.starts_with('='))
+            .map(|l| l.to_owned())
+            .unwrap();
+        assert_eq!(80, first_data_line.len());
     }
 }

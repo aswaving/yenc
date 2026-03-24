@@ -36,8 +36,8 @@ mod decode;
 mod encode;
 mod errors;
 
-pub use self::decode::{decode_buffer, DecodeOptions};
-pub use self::encode::{encode_buffer, EncodeOptions};
+pub use self::decode::{DecodeOptions, decode_buffer};
+pub use self::encode::{EncodeOptions, encode_buffer};
 pub use self::errors::{DecodeError, EncodeError};
 
 #[cfg(test)]
@@ -47,15 +47,10 @@ mod tests {
     #[test]
     fn equality() {
         let b = (0..256).map(|c| c as u8).collect::<Vec<u8>>();
-        assert_eq!(
-            b,
-            {
-                let mut output = Vec::new();
-                encode_buffer(&b, 0, 128, &mut output).unwrap();
-                decode_buffer(&output)
-            }
-            .unwrap()
-            .as_slice()
-        );
+        let mut encoded = Vec::new();
+        encode_buffer(&b, 0, 128, &mut encoded).unwrap();
+        let mut decoded = Vec::new();
+        decode_buffer(&encoded, &mut decoded).unwrap();
+        assert_eq!(b, decoded.as_slice());
     }
 }

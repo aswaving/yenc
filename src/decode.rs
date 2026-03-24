@@ -67,9 +67,11 @@ where
         let mut yenc_block_found = false;
         let mut metadata: MetaData = Default::default();
         let mut num_bytes = 0;
+        let mut line_buf = Vec::<u8>::with_capacity(2 * DEFAULT_LINE_SIZE as usize);
+        let mut decoded_buf = Vec::<u8>::with_capacity(DEFAULT_LINE_SIZE as usize);
 
         while !yenc_block_found {
-            let mut line_buf = Vec::<u8>::with_capacity(2 * DEFAULT_LINE_SIZE as usize);
+            line_buf.clear();
             let length = rdr.read_until(LF, &mut line_buf)?;
             if length == 0 {
                 break;
@@ -99,7 +101,7 @@ where
 
             let mut footer_found = false;
             while !footer_found {
-                let mut line_buf = Vec::<u8>::with_capacity(2 * DEFAULT_LINE_SIZE as usize);
+                line_buf.clear();
                 let length = rdr.read_until(LF, &mut line_buf)?;
                 if length == 0 {
                     break;
@@ -118,10 +120,11 @@ where
                     metadata.crc32 = mm.crc32;
                     metadata.pcrc32 = mm.pcrc32;
                 } else {
-                    let decoded = decode_buffer(&line_buf[0..length])?;
-                    checksum.update(&decoded);
-                    num_bytes += decoded.len();
-                    output.write_all(&decoded)?;
+                    decoded_buf.clear();
+                    decode_buffer(&line_buf[0..length], &mut decoded_buf)?;
+                    checksum.update(&decoded_buf);
+                    num_bytes += decoded_buf.len();
+                    output.write_all(&decoded_buf)?;
                 }
             }
             if footer_found {
@@ -152,43 +155,44 @@ where
     }
 }
 
-/// Decode the encoded byte slice into a vector of bytes.
+/// Decode the encoded byte slice into `output`.
 ///
-/// Carriage Return (CR) and Line Feed (LF) are ignored.
-pub fn decode_buffer(input: &[u8]) -> Result<Vec<u8>, DecodeError> {
-    let mut output = Vec::<u8>::with_capacity(input.len());
-    let mut iter = input.iter().cloned().enumerate();
-    while let Some((col, byte)) = iter.next() {
-        let mut result_byte = byte;
-        match byte {
-            NUL | CR | LF => {
-                // for now, just continue
-                continue;
-            }
-            DOT if col == 0 => match iter.next() {
-                Some((_, DOT)) => {}
-                Some((_, b)) => {
-                    output.push(byte.overflowing_sub(42).0);
-                    result_byte = b;
+/// `output` is appended to and not cleared beforehand. Carriage Return (CR)
+/// and Line Feed (LF) are ignored.
+pub fn decode_buffer(input: &[u8], output: &mut Vec<u8>) -> Result<(), DecodeError> {
+    let mut i = 0;
+    while i < input.len() {
+        let byte = input[i];
+        i += 1;
+        let result_byte = match byte {
+            NUL | CR | LF => continue,
+            DOT if i == 1 => {
+                // Leading dot on line: NNTP dot-stuffing.
+                match input.get(i).copied() {
+                    Some(DOT) => {
+                        i += 1;
+                        byte // both dots consumed; decode the one dot below
+                    }
+                    Some(b) => {
+                        output.push(byte.wrapping_sub(42)); // decode the dot
+                        i += 1;
+                        b // decode the following byte below
+                    }
+                    None => byte,
                 }
-                None => {}
+            }
+            ESCAPE => match input.get(i).copied() {
+                Some(b) => {
+                    i += 1;
+                    b.wrapping_sub(64) // pre-shift; -42 applied below
+                }
+                None => continue,
             },
-            ESCAPE => {
-                match iter.next() {
-                    Some((_, b)) => {
-                        result_byte = b.overflowing_sub(64).0;
-                    }
-                    None => {
-                        // for now, just continue
-                        continue;
-                    }
-                }
-            }
-            _ => {}
-        }
-        output.push(result_byte.overflowing_sub(42).0);
+            _ => byte,
+        };
+        output.push(result_byte.wrapping_sub(42));
     }
-    Ok(output)
+    Ok(())
 }
 
 fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
@@ -199,13 +203,13 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
         End,
     }
 
-    let header_line = String::from_utf8_lossy(line_buf).to_string();
+    let header_line = String::from_utf8_lossy(line_buf);
     if !(header_line.starts_with("=ybegin ")
         || header_line.starts_with("=yend ")
         || header_line.starts_with("=ypart "))
     {
         return Err(DecodeError::InvalidHeader {
-            line: header_line,
+            line: header_line.into_owned(),
             position: 0,
         });
     }
@@ -216,9 +220,9 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
         Some(pos) => pos + 1,
         None => {
             return Err(DecodeError::InvalidHeader {
-                line: header_line,
+                line: header_line.into_owned(),
                 position: 9,
-            })
+            });
         }
     };
 
@@ -243,16 +247,16 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                         Some(idx) => &line_buf[idx..=position],
                         None => {
                             return Err(DecodeError::InvalidHeader {
-                                line: header_line,
+                                line: header_line.into_owned(),
                                 position,
-                            })
+                            });
                         }
                     };
                 }
                 b'=' => {
                     if keyword.is_empty() || !is_known_keyword(keyword) {
                         return Err(DecodeError::InvalidHeader {
-                            line: header_line,
+                            line: header_line.into_owned(),
                             position,
                         });
                     } else {
@@ -262,7 +266,7 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                 CR | LF => {}
                 _ => {
                     return Err(DecodeError::InvalidHeader {
-                        line: header_line,
+                        line: header_line.into_owned(),
                         position,
                     });
                 }
@@ -272,7 +276,7 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                     CR => {}
                     LF => {
                         state = State::End;
-                        metadata.name = Some(String::from_utf8_lossy(value).to_string());
+                        metadata.name = Some(String::from_utf8_lossy(value).into_owned());
                     }
                     _ => {
                         if value_start_idx.is_none() {
@@ -282,9 +286,9 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                             Some(idx) => &line_buf[idx..=position],
                             None => {
                                 return Err(DecodeError::InvalidHeader {
-                                    line: header_line,
+                                    line: header_line.into_owned(),
                                     position,
-                                })
+                                });
                             }
                         };
                     }
@@ -298,9 +302,9 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                             Some(idx) => &line_buf[idx..=position],
                             None => {
                                 return Err(DecodeError::InvalidHeader {
-                                    line: header_line,
+                                    line: header_line.into_owned(),
                                     position,
-                                })
+                                });
                             }
                         };
                     }
@@ -309,9 +313,9 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                             Ok(size) => Some(size),
                             Err(_) => {
                                 return Err(DecodeError::InvalidHeader {
-                                    line: header_line,
+                                    line: header_line.into_owned(),
                                     position,
-                                })
+                                });
                             }
                         };
                         state = State::Keyword;
@@ -323,15 +327,15 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                             Ok(size) => Some(size),
                             Err(_) => {
                                 return Err(DecodeError::InvalidHeader {
-                                    line: header_line,
+                                    line: header_line.into_owned(),
                                     position,
-                                })
+                                });
                             }
                         };
                     }
                     _ => {
                         return Err(DecodeError::InvalidHeader {
-                            line: header_line,
+                            line: header_line.into_owned(),
                             position,
                         });
                     }
@@ -345,9 +349,9 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                             Some(idx) => &line_buf[idx..=position],
                             None => {
                                 return Err(DecodeError::InvalidHeader {
-                                    line: header_line,
+                                    line: header_line.into_owned(),
                                     position,
-                                })
+                                });
                             }
                         };
                     }
@@ -356,9 +360,9 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                             Ok(size) => Some(size),
                             Err(_) => {
                                 return Err(DecodeError::InvalidHeader {
-                                    line: header_line,
+                                    line: header_line.into_owned(),
                                     position,
-                                })
+                                });
                             }
                         };
 
@@ -373,7 +377,7 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                     }
                     _ => {
                         return Err(DecodeError::InvalidHeader {
-                            line: header_line,
+                            line: header_line.into_owned(),
                             position,
                         });
                     }
@@ -387,9 +391,9 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                             Some(idx) => &line_buf[idx..=position],
                             None => {
                                 return Err(DecodeError::InvalidHeader {
-                                    line: header_line,
+                                    line: header_line.into_owned(),
                                     position,
-                                })
+                                });
                             }
                         };
                     }
@@ -398,9 +402,9 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                             Ok(size) => Some(size),
                             Err(_) => {
                                 return Err(DecodeError::InvalidHeader {
-                                    line: header_line,
+                                    line: header_line.into_owned(),
                                     position,
-                                })
+                                });
                             }
                         };
                         state = State::Keyword;
@@ -409,7 +413,7 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                     }
                     _ => {
                         return Err(DecodeError::InvalidHeader {
-                            line: header_line,
+                            line: header_line.into_owned(),
                             position,
                         });
                     }
@@ -423,9 +427,9 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                             Some(idx) => &line_buf[idx..=position],
                             None => {
                                 return Err(DecodeError::InvalidHeader {
-                                    line: header_line,
+                                    line: header_line.into_owned(),
                                     position,
-                                })
+                                });
                             }
                         };
                     }
@@ -434,9 +438,9 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                             Ok(size) => Some(size),
                             Err(_) => {
                                 return Err(DecodeError::InvalidHeader {
-                                    line: header_line,
+                                    line: header_line.into_owned(),
                                     position,
-                                })
+                                });
                             }
                         };
                         if keyword == b"part" {
@@ -453,9 +457,9 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                             Ok(size) => Some(size),
                             Err(_) => {
                                 return Err(DecodeError::InvalidHeader {
-                                    line: header_line,
+                                    line: header_line.into_owned(),
                                     position,
-                                })
+                                });
                             }
                         };
 
@@ -463,7 +467,7 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                     }
                     _ => {
                         return Err(DecodeError::InvalidHeader {
-                            line: header_line,
+                            line: header_line.into_owned(),
                             position,
                         });
                     }
@@ -477,9 +481,9 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                             Some(idx) => &line_buf[idx..=position],
                             None => {
                                 return Err(DecodeError::InvalidHeader {
-                                    line: header_line,
+                                    line: header_line.into_owned(),
                                     position,
-                                })
+                                });
                             }
                         };
                     }
@@ -493,9 +497,9 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                             Ok(size) => Some(size),
                             Err(_) => {
                                 return Err(DecodeError::InvalidHeader {
-                                    line: header_line,
+                                    line: header_line.into_owned(),
                                     position,
-                                })
+                                });
                             }
                         };
                         if keyword == b"crc32" {
@@ -509,7 +513,7 @@ fn parse_header_line(line_buf: &[u8]) -> Result<MetaData, DecodeError> {
                     CR => {}
                     _ => {
                         return Err(DecodeError::InvalidHeader {
-                            line: header_line,
+                            line: header_line.into_owned(),
                             position,
                         });
                     }
@@ -640,47 +644,44 @@ mod tests {
         assert!(parse_result.is_err());
     }
 
+    fn decode(input: &[u8]) -> Vec<u8> {
+        let mut out = Vec::new();
+        decode_buffer(input, &mut out).unwrap();
+        out
+    }
+
     #[test]
     fn decode_invalid() {
-        assert!(decode_buffer(b"=").unwrap().is_empty());
+        assert!(decode(b"=").is_empty());
     }
 
     #[test]
     fn decode_valid_ff() {
-        assert_eq!(&vec![0xff - 0x2A], &decode_buffer(&[0xff]).unwrap());
+        assert_eq!(vec![0xff - 0x2A], decode(&[0xff]));
     }
 
     #[test]
     fn decode_valid_01() {
-        assert_eq!(&vec![0xff - 0x28], &decode_buffer(&[0x01]).unwrap());
+        assert_eq!(vec![0xff - 0x28], decode(&[0x01]));
     }
 
     #[test]
     fn decode_valid_esc_ff() {
-        assert_eq!(
-            &vec![0xff - 0x40 - 0x2A],
-            &decode_buffer(&[b'=', 0xff]).unwrap()
-        );
+        assert_eq!(vec![0xff - 0x40 - 0x2A], decode(&[b'=', 0xff]));
     }
 
     #[test]
     fn decode_valid_esc_01() {
-        assert_eq!(
-            &vec![0xff - 0x40 - 0x2A + 2],
-            &decode_buffer(&[b'=', 0x01]).unwrap()
-        );
+        assert_eq!(vec![0xff - 0x40 - 0x2A + 2], decode(&[b'=', 0x01]));
     }
 
     #[test]
     fn decode_valid_prepended_dots() {
-        assert_eq!(&vec![b'.' - 0x2A], &decode_buffer(b"..").unwrap());
+        assert_eq!(vec![b'.' - 0x2A], decode(b".."));
     }
 
     #[test]
     fn decode_valid_prepended_single_dot() {
-        assert_eq!(
-            &vec![b'.' - 0x2A, 0xff - 0x2A],
-            &decode_buffer(&[b'.', 0xff]).unwrap()
-        );
+        assert_eq!(vec![b'.' - 0x2A, 0xff - 0x2A], decode(&[b'.', 0xff]));
     }
 }

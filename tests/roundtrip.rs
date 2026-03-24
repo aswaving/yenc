@@ -1,18 +1,13 @@
-use rand::random;
 use std::env::temp_dir;
-use std::fs::{create_dir, remove_dir, remove_file, File};
+use std::fs::{File, create_dir, remove_dir, remove_file};
 use std::io::{Read, Result, Write};
 use std::path::Path;
 use std::sync::Mutex;
 
-lazy_static::lazy_static! {
-    static ref M: Mutex<u8> = Mutex::new(0);
-}
+static M: std::sync::LazyLock<Mutex<u8>> = std::sync::LazyLock::new(|| Mutex::new(0));
 
-fn encode(input_filename: &str) {
-    let parts = 1;
-
-    println!("{}", input_filename);
+fn encode(input_filename: &str, parts: u32) {
+    dbg!(&input_filename);
     let input_file = File::open(input_filename).expect("Cannot open file");
 
     let path = Path::new(&input_filename);
@@ -72,13 +67,13 @@ fn decode(input_filename: &str, output_directory: &str) -> u32 {
     }
 }
 
-fn encode_decode_are_equal(data: &[u8], filename: &str) -> Result<bool> {
+fn encode_decode_are_equal(data: &[u8], filename: &str, parts: u32) -> Result<bool> {
     // synchronize, to prevent test cases run in parallel and mess up directories
     let _x = M.lock().unwrap();
 
     // create temp dir
     let tmpdir = temp_dir();
-    println!("{}", tmpdir.display());
+    dbg!(&tmpdir);
 
     // created 'decoded' dir in temp dir
     let mut decoded_dir = tmpdir.clone();
@@ -88,20 +83,23 @@ fn encode_decode_are_equal(data: &[u8], filename: &str) -> Result<bool> {
     // dump data to file
     let mut filepath = tmpdir;
     filepath.push(filename);
+    dbg!(&filepath);
     let mut f = File::create(&filepath)?;
     f.write_all(data).unwrap();
 
     // encode file
-    encode(filepath.to_str().unwrap());
+    encode(filepath.to_str().unwrap(), parts);
 
     let mut decoded_file = decoded_dir.clone();
     decoded_file.push(filename);
 
     // decode file
-    decode(
-        &(filepath.to_str().unwrap().to_owned() + ".001"),
-        decoded_dir.to_str().unwrap(),
-    );
+    for part in 1..=parts {
+        decode(
+            &format!("{}.{:03}", filepath.to_str().unwrap(), part),
+            decoded_dir.to_str().unwrap(),
+        );
+    }
 
     // check that files are identical
     let mut decoded_file = decoded_dir.clone();
@@ -130,7 +128,7 @@ fn test_ascii() {
         .map(|c| (c & 0x7f) as u8)
         .collect::<Vec<u8>>();
 
-    assert!(encode_decode_are_equal(&data, "ascii").unwrap());
+    assert!(encode_decode_are_equal(&data, "ascii", 1).unwrap());
 }
 
 #[test]
@@ -139,12 +137,17 @@ fn test_binary() {
         .map(|c| (c & 0xff) as u8)
         .collect::<Vec<u8>>();
 
-    assert!(encode_decode_are_equal(&data, "binary").unwrap());
+    assert!(encode_decode_are_equal(&data, "binary", 1).unwrap());
 }
 
 #[test]
 fn test_random() {
-    let data = (0..10_000_000).map(|_| random::<u8>()).collect::<Vec<u8>>();
-
-    assert!(encode_decode_are_equal(&data, "random").unwrap());
+    use rand::RngCore;
+    use rand::SeedableRng;
+    use rand::rngs::SmallRng;
+    let mut rng = SmallRng::from_rng(&mut rand::rng());
+    let data = (0..10_000_000)
+        .map(|_| rng.next_u32() as u8)
+        .collect::<Vec<u8>>();
+    assert!(encode_decode_are_equal(&data, "random", 2).unwrap());
 }

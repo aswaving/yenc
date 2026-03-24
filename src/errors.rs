@@ -60,14 +60,13 @@ impl fmt::Display for DecodeError {
                 ref actual_size,
             } => write!(
                 f,
-                "Incomplete data: expected size {}, actual size {}",
-                expected_size, actual_size
+                "Incomplete data: expected size {expected_size}, actual size {actual_size}"
             ),
             DecodeError::InvalidHeader { ref line, position } => {
                 write!(f, "Invalid header: \n{}\n{}^", line, " ".repeat(position))
             }
             DecodeError::InvalidChecksum => write!(f, "Invalid checksum"),
-            DecodeError::IoError(ref err) => write!(f, "I/O error {}", err),
+            DecodeError::IoError(ref err) => write!(f, "I/O error {err}"),
         }
     }
 }
@@ -87,7 +86,7 @@ impl fmt::Display for EncodeError {
             EncodeError::PartOffsetsInvalidRange => {
                 write!(f, "Multiple parts, begin offset larger than end offset")
             }
-            EncodeError::IoError(ref err) => write!(f, "I/O error {}", err),
+            EncodeError::IoError(ref err) => write!(f, "I/O error {err}"),
         }
     }
 }
